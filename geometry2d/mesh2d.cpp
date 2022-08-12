@@ -17,10 +17,9 @@
 #include <Eigen/Core>
 
 
-icy::ConcurrentPool<icy::Node2D> icy::Mesh2D::NodeFactory(reserveConst);
-icy::ConcurrentPool<icy::Element2D> icy::Mesh2D::ElementFactory(reserveConst);
-icy::ConcurrentPool<icy::CohesiveZone2D> icy::Mesh2D::CZFactory(reserveConst);
-
+icy::SimplePool<icy::Node2D> icy::Mesh2D::NodeFactory(reserveConst);
+icy::SimplePool<icy::Element2D> icy::Mesh2D::ElementFactory(reserveConst);
+icy::SimplePool<icy::CohesiveZone2D> icy::Mesh2D::CZFactory(reserveConst);
 
 
 void icy::Mesh2D::Reset()
@@ -111,76 +110,8 @@ void icy::Mesh2D::LoadMSH(const std::string &fileName, bool insertCZs)
     if(insertCZs) czit.InsertCZs(*this);
 
     for(icy::Element2D *elem : elems) elem->Precompute();     // Dm matrix and volume
-//    MarkIncidentFaces();
 
     gmsh::clear();
     qDebug() << "LoadMSH 2D done";
 }
 
-/*
-void icy::Mesh2D::MarkIncidentFaces()
-{
-    // initialize incident faces information in nodes and elements
-
-    // (1) find exposed faces
-    std::map<std::tuple<int,int,int>,icy::CZInsertionTool::Facet> facets;
-    for(icy::Element *e : elems)
-    {
-        for(int k=0;k<4;k++)
-        {
-            std::tuple<int,int,int> key = icy::CZInsertionTool::Facet::make_key(
-                        e->nds[Element::fi[k][0]],
-                    e->nds[Element::fi[k][1]],
-                    e->nds[Element::fi[k][2]]);
-            icy::CZInsertionTool::Facet facet;
-            facet.key = key;
-            facet.elems[0] = e;
-            facet.facet_idx[0] = k;
-            auto result = facets.insert({key,facet});
-            if(result.second == false)
-            {
-                icy::CZInsertionTool::Facet &f = result.first->second;
-                f.elems[1] = e;
-                f.facet_idx[1] = k;
-            }
-        }
-    }
-
-    // (2) distribute exposed faces to their incident nodes
-    for(Node *nd : nodes) { nd->incident_faces.clear(); nd->surface = false; }
-
-    int count = 0;
-    for(auto &kvp : facets)
-    {
-        icy::CZInsertionTool::Facet &f = kvp.second;
-        if(f.elems[1] != nullptr) {
-            continue;
-        }
-
-        Element *e = f.elems[0];
-        unsigned k = f.facet_idx[0];
-
-        uint32_t facet_code = (uint32_t)f.facet_idx[0] | (uint32_t)f.elems[0]->elemId << 2;
-        for(int i=0;i<3;i++)
-        {
-            Node *nd = e->nds[Element::fi[k][i]];
-            nd->incident_faces.push_back(facet_code);
-            nd->surface = true;
-        }
-        count++;
-    }
-
-    // (3) per element - collect all exposed faces from element's 4 nodes
-    for(Element *elem : elems)
-    {
-        auto &r = elem->elem_incident_faces;
-        r.clear();
-        for(int i=0;i<4;i++)
-            for(uint32_t facet_code : elem->nds[i]->incident_faces)
-                r.push_back(facet_code);
-        std::sort(r.begin(),r.end());
-        r.resize(std::distance(r.begin(),std::unique(r.begin(), r.end())));
-    }
-}
-
-*/

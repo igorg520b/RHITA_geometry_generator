@@ -40,6 +40,9 @@ add_executable(rhita
   geometry2d/czinsertiontool2d.h
   geometry2d/cohesivezone2d.cpp
   geometry2d/cohesivezone2d.h
+
+  generator.h
+  generator.cpp
 )
 
 target_link_libraries(rhita Qt${QT_VERSION_MAJOR}::Core)

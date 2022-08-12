@@ -1,13 +1,9 @@
-#if !defined(Q_MOC_RUN) // MOC has a glitch when parsing tbb headers
 #ifndef FL333_H
 #define FL333_H
 
 #include <vector>
 #include <string>
 #include <algorithm>
-
-#include <tbb/concurrent_vector.h>
-#include <tbb/concurrent_unordered_set.h>
 
 #include <gmsh.h>
 #include <Eigen/Core>
@@ -16,7 +12,7 @@
 #include <QDir>
 #include <QDebug>
 
-#include "ConcurrentPool.h"
+#include "ObjectPool.h"
 #include "node.h"
 
 namespace icy { class Mesh; struct Node; struct Element; struct CohesiveZone;}
@@ -48,9 +44,9 @@ public:
 
 private:
     constexpr static unsigned reserveConst = 100000;
-    static ConcurrentPool<Node> NodeFactory;
-    static ConcurrentPool<Element> ElementFactory;
-    static ConcurrentPool<CohesiveZone> CZFactory;
+    static SimplePool<Node> NodeFactory;
+    static SimplePool<Element> ElementFactory;
+    static SimplePool<CohesiveZone> CZFactory;
     void MarkIncidentFaces();
 
     // collision detection and contact
@@ -65,4 +61,3 @@ private:
 
 };
 #endif
-#endif //Q_MOC_RUN

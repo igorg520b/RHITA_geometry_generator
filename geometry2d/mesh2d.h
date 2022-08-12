@@ -5,9 +5,6 @@
 #include <string>
 #include <algorithm>
 
-#include <tbb/concurrent_vector.h>
-#include <tbb/concurrent_unordered_set.h>
-
 #include <gmsh.h>
 #include <Eigen/Core>
 
@@ -15,7 +12,7 @@
 #include <QDir>
 #include <QDebug>
 
-#include "ConcurrentPool.h"
+#include "ObjectPool.h"
 #include "node2d.h"
 
 namespace icy { class Mesh2D; struct Node2D; struct Element2D; struct CohesiveZone2D;}
@@ -41,10 +38,8 @@ public:
 
 private:
     constexpr static unsigned reserveConst = 100000;
-    static ConcurrentPool<Node2D> NodeFactory;
-    static ConcurrentPool<Element2D> ElementFactory;
-    static ConcurrentPool<CohesiveZone2D> CZFactory;
-//    void MarkIncidentFaces();
-
+    static SimplePool<Node2D> NodeFactory;
+    static SimplePool<Element2D> ElementFactory;
+    static SimplePool<CohesiveZone2D> CZFactory;
 };
 #endif
