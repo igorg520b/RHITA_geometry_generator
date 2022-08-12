@@ -48,8 +48,10 @@ void Generator::Generate()
     int loopTag = gmsh::model::occ::addCurveLoop({arc,line1,line2,line3,line4,line5, line6, line7});
     gmsh::model::occ::addPlaneSurface({loopTag});
 
+    gmsh::model::occ::synchronize();
     int groupTag1 = gmsh::model::addPhysicalGroup(1, {arc});
     int groupTag2 = gmsh::model::addPhysicalGroup(1, {line3, line4, line5});
+
     gmsh::model::occ::synchronize();
 
     gmsh::option::setNumber("Mesh.MeshSizeMax", elemSize);
@@ -78,11 +80,13 @@ void Generator::Generate()
     nodeCoords.clear();
     gmsh::model::mesh::getNodesForPhysicalGroup(1, groupTag1, nodeTags, nodeCoords);
     for(unsigned j=0;j<nodeTags.size();j++) mesh2d.nodes[mtags[nodeTags[j]]]->group=1;
+    spdlog::info("groupTag1 nodes {}",nodeTags.size());
 
     nodeTags.clear();
     nodeCoords.clear();
     gmsh::model::mesh::getNodesForPhysicalGroup(1, groupTag2, nodeTags, nodeCoords);
     for(unsigned j=0;j<nodeTags.size();j++) mesh2d.nodes[mtags[nodeTags[j]]]->group=2;
+    spdlog::info("groupTag2 nodes {}",nodeTags.size());
 
     // get elements
     std::vector<std::size_t> trisTags, nodeTagsInTris;
