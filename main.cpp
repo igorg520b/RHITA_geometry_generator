@@ -22,27 +22,26 @@ int main(int argc, char *argv[])
 
     QCommandLineOption outputFileOption(QStringList() << "o" << "out",
                                         QCoreApplication::translate("main", "Output file name"), "default.py");
-    parser.addOption(outputFileOption);
 
 
     QCommandLineOption indenterOption(QStringList() << "i" << "ind",
                                       QCoreApplication::translate("main", "Indenter radius"), "0.161925");
-    parser.addOption(indenterOption);
 
     QCommandLineOption elemSizeOption(QStringList() << "e" << "elemsize",
                                       QCoreApplication::translate("main", "Element size"), "0.05");
-    parser.addOption(elemSizeOption);
 
     QCommandLineOption notchOffsetOption(QStringList() << "n" << "notch",
                                          QCoreApplication::translate("main", "Notch offset"), "1.1");
-    parser.addOption(notchOffsetOption);
 
     QCommandLineOption indentationDepthOption(QStringList() << "d" << "depth",
                                          QCoreApplication::translate("main", "Indentation depth"), "0.05");
-    parser.addOption(indentationDepthOption);
 
-    QCommandLineOption insertCZSOption(QStringList() << "czs",
-                                         QCoreApplication::translate("main", "InsertCZS"));
+    QCommandLineOption insertCZSOption(QStringList() << "z" << "czs", QCoreApplication::translate("main", "InsertCZS"));
+    parser.addOption(outputFileOption);
+    parser.addOption(indenterOption);
+    parser.addOption(elemSizeOption);
+    parser.addOption(notchOffsetOption);
+    parser.addOption(indentationDepthOption);
     parser.addOption(insertCZSOption);
 
     // -o test.msh -i 0.161925 -e 0.1 -n 1.1
