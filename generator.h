@@ -4,7 +4,6 @@
 #include <string>
 #include "mesh2d.h"
 
-#include "cohesivezone2d.h"
 
 class Generator
 {
@@ -12,11 +11,17 @@ public:
     Generator();
 
     std::string outputFileName = "default";
-    double elemSize = 0.05;
+    double elemSize = 0.025;
     double notchOffset = 1.1;
     double indenterRadius = 0.161925;
     double indentationDepth = 0.05;
     bool insertCZs = false;
+    bool plasticity = true;
+
+    double timeToRun = 0.2;
+    int nFrames = 100;
+
+    bool loadWithIndenter = true;   // if false -> static load
 
     constexpr static double blockHeight = 1.;
     constexpr static double blockLength = 2.5;
@@ -30,6 +35,7 @@ public:
     icy::Mesh2D mesh2d;
 
     void Generate();
+    void CreatePyWithIndenter2D();
 };
 
 #endif // GENERATOR_H

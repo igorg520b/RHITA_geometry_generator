@@ -3,6 +3,7 @@
 
 #include "element2d.h"
 #include "czinsertiontool2d.h"
+#include "cohesivezone2d.h"
 
 #include <spdlog/spdlog.h>
 #include <fstream>
@@ -55,6 +56,7 @@ void Generator::Generate()
     gmsh::model::occ::synchronize();
 
     gmsh::option::setNumber("Mesh.MeshSizeMax", elemSize);
+    gmsh::option::setNumber("Mesh.Algorithm", 5);
     gmsh::model::mesh::generate(2);
 
     // now load into MESH2D
@@ -113,7 +115,13 @@ void Generator::Generate()
 
     spdlog::info("nodes {}; elems {}; czs {}", mesh2d.nodes.size(), mesh2d.elems.size(), mesh2d.czs.size());
 
+    if(loadWithIndenter) CreatePyWithIndenter2D();
 
+}
+
+
+void Generator::CreatePyWithIndenter2D()
+{
     // SAVE as .py
     std::ofstream s;
     s.open(outputFileName+".py", std::ios_base::trunc|std::ios_base::out);
@@ -180,6 +188,12 @@ void Generator::Generate()
     s << "mat1.Density(table=((900.0, ), ))\n";
     s << "mat1.Elastic(table=((" << YoungsModulus << ", 0.3), ))\n";
 
+    if(plasticity)
+    {
+        s << "mat1.Plastic(scaleStress=None,table="
+                "((50000.0, 0.0), (100000.0, 0.01), (1000000.0, 0.05), (10000000.0,0.1)))\n";
+    }
+
     // cz material
     if(hasCZs)
     {
@@ -235,6 +249,9 @@ void Generator::Generate()
     // add and rotate main part
     s << "inst1 = a1.Instance(name='MyPart1-1', part=p, dependent=ON)\n";
 
+    const double &R = indenterRadius;
+    const double &d = indentationDepth;
+    double b = sqrt(R*R - (R-d)*(R-d));
     double xOffset = notchOffset-b;
     double yOffset = blockHeight-d+R;
     double zOffset = 0;
@@ -244,12 +261,10 @@ void Generator::Generate()
     s << "a1.translate(instanceList=('Part-2-1', ), vector=("<< xOffset << ", " << yOffset << ", " << zOffset << "))\n";
 
     // create step
-    double timePeriod = 10;
-    int numIntervals = 200*timePeriod;
-    s << "mdb.models['Model-1'].ExplicitDynamicsStep(name='Step-1', previous='Initial', timePeriod=" << timePeriod << ", improvedDtMethod=ON)\n";
+    s << "mdb.models['Model-1'].ExplicitDynamicsStep(name='Step-1', previous='Initial', timePeriod=" << timeToRun << ", improvedDtMethod=ON)\n";
 
     // create field output request
-    s << "mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(numIntervals=" << numIntervals << ")\n";
+    s << "mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(numIntervals=" << nFrames << ")\n";
 
     // gravity load
     s << "mdb.models['Model-1'].Gravity(name='Load-1', createStepName='Step-1',comp2=-10.0, distributionType=UNIFORM, field='')\n";
@@ -314,5 +329,4 @@ void Generator::Generate()
 
     s.close();
 }
-
 
