@@ -21,20 +21,23 @@ int main(int argc, char *argv[])
     //    parser.addPositionalArgument("source", QCoreApplication::translate("main", "Configuration file."));
 
     QCommandLineOption outputFileOption(QStringList() << "o" << "out",
-                                        QCoreApplication::translate("main", "Output file name"), "default.py");
+                                        QCoreApplication::translate("main", "Output file name"), "outputFile");
 
 
     QCommandLineOption indenterOption(QStringList() << "i" << "ind",
-                                      QCoreApplication::translate("main", "Indenter radius"), "0.161925");
+                                      QCoreApplication::translate("main", "Indenter radius"), "indenterRadius");
 
     QCommandLineOption elemSizeOption(QStringList() << "e" << "elemsize",
-                                      QCoreApplication::translate("main", "Element size"), "0.05");
+                                      QCoreApplication::translate("main", "Element size"), "elemSize");
 
     QCommandLineOption notchOffsetOption(QStringList() << "n" << "notch",
-                                         QCoreApplication::translate("main", "Notch offset"), "1.1");
+                                         QCoreApplication::translate("main", "Notch offset"), "notchOffset");
 
     QCommandLineOption indentationDepthOption(QStringList() << "d" << "depth",
-                                         QCoreApplication::translate("main", "Indentation depth"), "0.05");
+                                         QCoreApplication::translate("main", "Indentation depth"), "indentationDepth");
+
+    QCommandLineOption loadFileOption(QStringList() << "m" << "meshfile",
+                                         QCoreApplication::translate("main", "Load from MSH file"), "FileName");
 
     QCommandLineOption insertCZSOption(QStringList() << "z" << "czs", QCoreApplication::translate("main", "InsertCZS"));
     parser.addOption(outputFileOption);
@@ -43,6 +46,7 @@ int main(int argc, char *argv[])
     parser.addOption(notchOffsetOption);
     parser.addOption(indentationDepthOption);
     parser.addOption(insertCZSOption);
+    parser.addOption(loadFileOption);
 
     // -o test.msh -i 0.161925 -e 0.1 -n 1.1
 
@@ -52,22 +56,17 @@ int main(int argc, char *argv[])
     Generator g;
 
 
-    if(parser.isSet(outputFileOption)) {
-        g.outputFileName = parser.value(outputFileOption).toStdString();
-    }
-    if(parser.isSet(indenterOption)) {
-        g.indenterRadius = parser.value(indenterOption).toDouble();
-    }
-    if(parser.isSet(elemSizeOption))
-    {
-        g.elemSize = parser.value(elemSizeOption).toDouble();
-    }
+    if(parser.isSet(outputFileOption)) g.outputFileName = parser.value(outputFileOption).toStdString();
+    if(parser.isSet(indenterOption)) g.indenterRadius = parser.value(indenterOption).toDouble();
+    if(parser.isSet(elemSizeOption)) g.elemSize = parser.value(elemSizeOption).toDouble();
 
     if(parser.isSet(notchOffsetOption)) g.notchOffset = parser.value(notchOffsetOption).toDouble();
     if(parser.isSet(indentationDepthOption)) g.indentationDepth = parser.value(indentationDepthOption).toDouble();
     if(parser.isSet(insertCZSOption)) g.insertCZs = true;
 
-
-    g.Generate();
+    if(parser.isSet(loadFileOption))
+        g.LoadFromFile(parser.value(loadFileOption).toStdString());
+    else
+        g.Generate();
 
 }

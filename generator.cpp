@@ -9,10 +9,6 @@
 #include <fstream>
 #include <iomanip>
 
-Generator::Generator()
-{
-
-}
 
 void Generator::Generate()
 {
@@ -118,6 +114,14 @@ void Generator::Generate()
     if(loadWithIndenter) CreatePyWithIndenter2D();
 
 }
+
+void Generator::LoadFromFile(std::string MSHFileName)
+{
+    spdlog::info("loading from file {}",MSHFileName);
+
+    spdlog::info("LoadFromFile done");
+}
+
 
 
 void Generator::CreatePyWithIndenter2D()
@@ -252,7 +256,7 @@ void Generator::CreatePyWithIndenter2D()
     const double &R = indenterRadius;
     const double &d = indentationDepth;
     double b = sqrt(R*R - (R-d)*(R-d));
-    double xOffset = notchOffset-b;
+    double xOffset = indenterOffset == 0 ? notchOffset-b : indenterOffset;
     double yOffset = blockHeight-d+R;
     double zOffset = 0;
     s << "a1.Instance(name='Part-2-1', part=p2, dependent=ON)\n";
