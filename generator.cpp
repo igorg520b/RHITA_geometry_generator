@@ -184,6 +184,7 @@ void Generator::LoadFromFile(std::string MSHFileName)
     spdlog::info("blockLength {}; blockHeight {}", blockLength, blockHeight);
     spdlog::info("nds {}; elems {}; czs {}; grains {}", mesh2d.nodes.size(), mesh2d.elems.size(), mesh2d.czs.size(), dimTagsGrains.size());
 
+    indenterOffset = 0.2;
     if(loadWithIndenter) CreatePyWithIndenter2D();
 
 
