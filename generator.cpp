@@ -119,6 +119,74 @@ void Generator::LoadFromFile(std::string MSHFileName)
 {
     spdlog::info("loading from file {}",MSHFileName);
 
+    gmsh::initialize();
+    gmsh::open("msh\\" + MSHFileName);
+
+    std::vector<std::size_t> nodeTags;
+    std::vector<double> nodeCoords, parametricCoords;
+    std::unordered_map<std::size_t, std::size_t> mtags; // gmsh nodeTag -> sequential position in nodes[]
+
+    // GET NODES
+    gmsh::model::mesh::getNodesByElementType(2, nodeTags, nodeCoords, parametricCoords);
+
+    // set the size of the resulting nodes array
+    for(unsigned i=0;i<nodeTags.size();i++)
+    {
+        std::size_t tag = nodeTags[i];
+        if(mtags.count(tag)>0) continue; // throw std::runtime_error("GetFromGmsh() node duplication in deformable");
+        icy::Node2D *nd = mesh2d.AddNode();
+        mtags[tag] = nd->globId;
+        nd->x0 = Eigen::Vector2d(nodeCoords[i*3+0], nodeCoords[i*3+1]);
+    }
+
+    // GET ELEMENTS - per grain (entity)
+    std::vector<std::pair<int,int>> dimTagsGrains;
+    gmsh::model::getEntities(dimTagsGrains,2);
+
+    for(std::size_t j=0;j<dimTagsGrains.size();j++)
+    {
+        std::vector<std::size_t> trisTags, nodeTagsInTris;
+        int entityTag = dimTagsGrains[j].second;
+        gmsh::model::mesh::getElementsByType(2, trisTags, nodeTagsInTris,entityTag);
+
+        for(std::size_t i=0;i<trisTags.size();i++)
+        {
+            icy::Element2D *elem = mesh2d.AddElement();
+            elem->grainId = (int)j;
+            for(int k=0;k<3;k++) elem->nds[k] = mesh2d.nodes[mtags.at(nodeTagsInTris[i*3+k])];
+        }
+    }
+
+    gmsh::finalize();
+
+    if(insertCZs)
+    {
+        icy::CZInsertionTool2D czit;
+        czit.InsertCZs(mesh2d);
+    }
+
+    for(icy::Element2D *elem : mesh2d.elems) elem->Precompute();     // Dm matrix and volume
+
+    // dimensions of the block
+    auto it_x = std::max_element(mesh2d.nodes.begin(),mesh2d.nodes.end(),
+                               [](icy::Node2D *nd1, icy::Node2D *nd2){return nd1->x0.x() < nd2->x0.x();});
+    blockLength = (*it_x)->x0.x();
+
+    auto it_y = std::max_element(mesh2d.nodes.begin(),mesh2d.nodes.end(),
+                               [](icy::Node2D *nd1, icy::Node2D *nd2){return nd1->x0.y() < nd2->x0.y();});
+    blockHeight = (*it_y)->x0.y();
+
+    for(icy::Node2D *nd : mesh2d.nodes)
+    {
+        if(nd->x0.y()==0 || nd->x0.x()==0 || abs(nd->x0.x()-blockLength)<1e-7) nd->group = 2;
+    }
+
+    spdlog::info("blockLength {}; blockHeight {}", blockLength, blockHeight);
+    spdlog::info("nds {}; elems {}; czs {}; grains {}", mesh2d.nodes.size(), mesh2d.elems.size(), mesh2d.czs.size(), dimTagsGrains.size());
+
+    if(loadWithIndenter) CreatePyWithIndenter2D();
+
+
     spdlog::info("LoadFromFile done");
 }
 
