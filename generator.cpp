@@ -178,15 +178,16 @@ void Generator::LoadFromFile(std::string MSHFileName)
 
     for(icy::Node2D *nd : mesh2d.nodes)
     {
-        if(nd->x0.y()==0 || nd->x0.x()==0 || abs(nd->x0.x()-blockLength)<1e-7) nd->group = 2;
+//        if(nd->x0.y()==0 || nd->x0.x()==0 || abs(nd->x0.x()-blockLength)<1e-7) nd->group = 2;
+        if(nd->x0.y()==0) nd->group = 2;
     }
 
     spdlog::info("blockLength {}; blockHeight {}", blockLength, blockHeight);
     spdlog::info("nds {}; elems {}; czs {}; grains {}", mesh2d.nodes.size(), mesh2d.elems.size(), mesh2d.czs.size(), dimTagsGrains.size());
 
-    indenterOffset = 0.05;
+//    indenterOffset = 0.05;
+    notchOffset = 0;
     if(loadWithIndenter) CreatePyWithIndenter2D();
-
 
     spdlog::info("LoadFromFile done");
 }
@@ -326,7 +327,10 @@ void Generator::CreatePyWithIndenter2D()
     const double &d = indentationDepth;
     double b = sqrt(R*R - (R-d)*(R-d));
     double xOffset = indenterOffset == 0 ? notchOffset-b : indenterOffset;
+    spdlog::info("xOffset {}; indenterOffset {}; notchOffset {}",xOffset, indenterOffset, notchOffset);
+    //horizontalOffset += -sqrt(pow(indenterRadius,2)-pow(indenterRadius-indenterDepth,2))-1e-7;
     double yOffset = blockHeight-d+R;
+
     double zOffset = 0;
     s << "a1.Instance(name='Part-2-1', part=p2, dependent=ON)\n";
     // rotate indenter
