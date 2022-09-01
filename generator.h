@@ -17,10 +17,11 @@ public:
     double indenterOffset = 0;
 
     bool insertCZs = false;
-    bool plasticity = true;
+    bool plasticity = false;
+    bool createCDP = false;
 
-    double timeToRun = 0.2;
-    int nFrames = 100;
+    double timeToRun = 3;
+    int nFrames = 1000;
 
     bool loadWithIndenter = true;   // if false -> static load
 
@@ -38,6 +39,7 @@ public:
     void Generate();
     void LoadFromFile(std::string MSHFileName);
     void CreatePyWithIndenter2D();
+    void CreateCDP(std::ofstream &s);
 };
 
 #endif // GENERATOR_H

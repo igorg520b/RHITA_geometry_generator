@@ -40,6 +40,8 @@ int main(int argc, char *argv[])
                                          QCoreApplication::translate("main", "Load from MSH file"), "FileName");
 
     QCommandLineOption insertCZSOption(QStringList() << "z" << "czs", QCoreApplication::translate("main", "InsertCZS"));
+    QCommandLineOption createCDPOption(QStringList() << "cdp", QCoreApplication::translate("main", "Create CDP material"));
+
     parser.addOption(outputFileOption);
     parser.addOption(indenterOption);
     parser.addOption(elemSizeOption);
@@ -47,6 +49,7 @@ int main(int argc, char *argv[])
     parser.addOption(indentationDepthOption);
     parser.addOption(insertCZSOption);
     parser.addOption(loadFileOption);
+    parser.addOption(createCDPOption);
 
     // -o test.msh -i 0.161925 -e 0.1 -n 1.1
 
@@ -63,6 +66,7 @@ int main(int argc, char *argv[])
     if(parser.isSet(notchOffsetOption)) g.notchOffset = parser.value(notchOffsetOption).toDouble();
     if(parser.isSet(indentationDepthOption)) g.indentationDepth = parser.value(indentationDepthOption).toDouble();
     if(parser.isSet(insertCZSOption)) g.insertCZs = true;
+    if(parser.isSet(createCDPOption)) g.createCDP = true;
 
     if(parser.isSet(loadFileOption))
         g.LoadFromFile(parser.value(loadFileOption).toStdString());

@@ -226,7 +226,7 @@ void Generator::CreatePyWithIndenter2D()
              "], n["<<c->nds[2]->globId<<
              "]), elemShape=QUAD4)\n";
 
-    s << "elemType_bulk = mesh.ElemType(elemCode=CPS3, elemLibrary=STANDARD, secondOrderAccuracy=OFF, distortionControl=DEFAULT)\n";
+    s << "elemType_bulk = mesh.ElemType(elemCode=CPS3, elemLibrary=STANDARD, secondOrderAccuracy=OFF, distortionControl=DEFAULT, elemDeletion=ON)\n";
 
     bool hasCZs = mesh2d.czs.size()>0;
     if(hasCZs)
@@ -253,14 +253,22 @@ void Generator::CreatePyWithIndenter2D()
         if(nd->group==2)
             s << "p.nodes["<<nd->globId<<":"<<nd->globId+1<<"],";
     s << ")\n";
-
     s << "p.Set(nodes=region3pinned,name='Set3-pinned')\n";
+
+    // region - all nodes
+    s << "region4allNodes = (";
+    for(icy::Node2D *nd : mesh2d.nodes)
+            s << "p.nodes["<<nd->globId<<":"<<nd->globId+1<<"],";
+    s << ")\n";
+    s << "p.Set(nodes=region4allNodes,name='Set4-all')\n";
 
 
     // create bulk material
     s << "mat1 = mdb.models['Model-1'].Material(name='Material-1-bulk')\n";
     s << "mat1.Density(table=((900.0, ), ))\n";
     s << "mat1.Elastic(table=((" << YoungsModulus << ", 0.3), ))\n";
+
+    CreateCDP(s);
 
     if(plasticity)
     {
@@ -341,7 +349,10 @@ void Generator::CreatePyWithIndenter2D()
     s << "mdb.models['Model-1'].ExplicitDynamicsStep(name='Step-1', previous='Initial', timePeriod=" << timeToRun << ", improvedDtMethod=ON)\n";
 
     // create field output request
-    s << "mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(numIntervals=" << nFrames << ")\n";
+    s << "mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(numIntervals=" << nFrames <<
+         ",variables=('S', 'SVAVG', 'PE', 'PEVAVG', 'PEEQ', 'PEEQVAVG', 'LE', "
+             "'U', 'V', 'A', 'RF', 'CSTRESS', 'DAMAGEC', 'DAMAGET', 'DAMAGESHR', 'EVF', "
+             "'STATUS'))\n";
 
     // gravity load
     s << "mdb.models['Model-1'].Gravity(name='Load-1', createStepName='Step-1',comp2=-10.0, distributionType=UNIFORM, field='')\n";
@@ -372,11 +383,17 @@ void Generator::CreatePyWithIndenter2D()
 
     // create interaction property
     s << "mdb.models['Model-1'].ContactProperty('IntProp-1')\n";
-    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
-         "formulation=FRICTIONLESS)\n";
+//    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
+//         "formulation=FRICTIONLESS)\n";
     s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].NormalBehavior("
          "pressureOverclosure=HARD, allowSeparation=ON, "
          "constraintEnforcementMethod=DEFAULT)\n";
+
+    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
+        "dependencies=0, directionality=ISOTROPIC, elasticSlipStiffness=None, "
+        "formulation=PENALTY, fraction=0.005, maximumElasticSlip=FRACTION, "
+        "pressureDependency=OFF, shearStressLimit=None, slipRateDependency=OFF, "
+        "table=((0.1, ), ), temperatureDependency=OFF)\n";
 
     // create interaction itself
     s << "mdb.models['Model-1'].ContactExp(name='Int-1', createStepName='Step-1')\n";
@@ -384,6 +401,15 @@ void Generator::CreatePyWithIndenter2D()
          "stepName='Step-1', useAllstar=ON)\n";
     s << "mdb.models['Model-1'].interactions['Int-1'].contactPropertyAssignments.appendInStep("
          "stepName='Step-1', assignments=((GLOBAL, SELF, 'IntProp-1'), ))\n";
+
+
+    // additional contact between surface and nodes
+    s << "mdb.models['Model-1'].SurfaceToSurfaceContactExp(clearanceRegion=None,"
+        "createStepName='Initial', datumAxis=None, initialClearance=OMIT, "
+        "interactionProperty='IntProp-1', main="
+        "a1.surfaces['Surf-1'], "
+        "mechanicalConstraint=KINEMATIC, name='Int-2', secondary="
+        "a1.sets['MyPart1-1.Set4-all'], sliding=FINITE)\n";
 
 
     // record indenter force
@@ -407,3 +433,77 @@ void Generator::CreatePyWithIndenter2D()
     s.close();
 }
 
+void Generator::CreateCDP(std::ofstream &s)
+{
+    if(!createCDP) return;
+    s<< "mat1.ConcreteDamagedPlasticity(table=((40.0, 0.1, 1.16, 0.6667, 0.0), ))\n";
+
+    s<< "mat1.concreteDamagedPlasticity.ConcreteCompressionHardening("
+        "table=("
+            "(6971831.,0.),"
+            "(9281690.,0.0000804109631874323),"
+            "(9633803.,0.000118157290909088),"
+            "(9929577.,0.000173993508417516),"
+            "(10000000.,0.000237128729517396),"
+            "(9971831.,0.000311218618855219),"
+            "(9816901.,0.000393483065768806),"
+            "(9507042.,0.000498871848484853),"
+            "(9000000.,0.000649819856565657),"
+            "(8225352.,0.000854161868911338),"
+            "(7239437.,0.00111153799573512),"
+            "(6056338.,0.00146179345903479),"
+            "(5140845.,0.00181778491806959),"
+            "(4492958.,0.0021913523728395),"
+            "(3985915.,0.00270893049203143),"
+            "(3732394.,0.00308007949607183),"
+            "(3535211.,0.00345086872143659),"
+            "(3295775.,0.00397419272525252)"
+    "))\n";
+
+    s<< "mat1.concreteDamagedPlasticity.ConcreteTensionStiffening("
+        "table=("
+            "(1000000.,0.),"
+            "(499352.,0.0000695164364861971),"
+            "(143067.,0.000134103664386587),"
+            "(40989.3,0.000170445632680081),"
+            "(11743.6,0.000198695155368396)"
+            "))\n";
+
+    s << "mat1.concreteDamagedPlasticity.ConcreteCompressionDamage("
+                "table=("
+            "(0.,0.),"
+            "(0.,.0000804109631874323),"
+            "(0.,0.000118157290909088),"
+            "(0.,0.000173993508417516),"
+            "(0.,0.000237128729517396),"
+            "(0.00281690000000001,0.000311218618855219),"
+            "(0.0183099,0.000393483065768806),"
+            "(0.0492958,0.000498871848484853),"
+            "(0.1,0.000649819856565657),"
+            "(0.1774648,0.000854161868911338),"
+            "(0.2760563,0.00111153799573512),"
+            "(0.3943662,0.00146179345903479),"
+            "(0.4859155,0.00181778491806959),"
+            "(0.5507042,0.0021913523728395),"
+            "(0.6014085,0.00270893049203143),"
+            "(0.6267606,0.00308007949607183),"
+            "(0.6464789,0.00345086872143659),"
+            "(0.6704225,0.00397419272525252)"
+            "))\n";
+
+    s<<"mat1.concreteDamagedPlasticity.ConcreteTensionDamage("
+        "table=("
+            "(0.,0.),"
+            "(0.500648,.0000695164364861971),"
+            "(0.856933,0.000134103664386587),"
+            "(0.9590107,0.000170445632680081),"
+            "(0.9882564,0.000198695155368396)"
+            "))\n";
+
+}
+
+
+
+/*
+
+*/
