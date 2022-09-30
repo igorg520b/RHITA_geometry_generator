@@ -336,7 +336,7 @@ void Generator::CreatePyWithIndenter2D()
     const double &d = indentationDepth;
     double b = sqrt(R*R - (R-d)*(R-d));
     double xOffset = indenterOffset == 0 ? notchOffset-b : indenterOffset;
-    xOffset -= interactionRadius;
+    xOffset -= interactionRadius*1.5;
     spdlog::info("xOffset {}; indenterOffset {}; notchOffset {}",xOffset, indenterOffset, notchOffset);
     //horizontalOffset += -sqrt(pow(indenterRadius,2)-pow(indenterRadius-indenterDepth,2))-1e-7;
     double yOffset = blockHeight-d+R;
@@ -384,12 +384,13 @@ void Generator::CreatePyWithIndenter2D()
     // rigid body constraint
 
     // create interaction property
-    s << "mdb.models['Model-1'].ContactProperty('IntProp-1')\n";
-//    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
-//         "formulation=FRICTIONLESS)\n";
-//    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].NormalBehavior("
-//         "pressureOverclosure=HARD, allowSeparation=ON, "
-//         "constraintEnforcementMethod=DEFAULT)\n";
+    s << "mdb.models['Model-1'].ContactProperty('IntProp-2czs')\n";
+
+    s << "mdb.models['Model-1'].interactionProperties['IntProp-2czs'].TangentialBehavior("
+         "formulation=FRICTIONLESS)\n";
+    s << "mdb.models['Model-1'].interactionProperties['IntProp-2czs'].NormalBehavior("
+         "pressureOverclosure=HARD, allowSeparation=ON, "
+         "constraintEnforcementMethod=DEFAULT)\n";
 
 //    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
 //        "dependencies=0, directionality=ISOTROPIC, elasticSlipStiffness=None, "
@@ -397,6 +398,7 @@ void Generator::CreatePyWithIndenter2D()
 //        "pressureDependency=OFF, shearStressLimit=None, slipRateDependency=OFF, "
 //        "table=((0.1, ), ), temperatureDependency=OFF)\n";
 
+    s << "mdb.models['Model-1'].ContactProperty('IntProp-1')\n";
       s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
         "formulation=PENALTY, directionality=ISOTROPIC, slipRateDependency=OFF, "
         "pressureDependency=OFF, temperatureDependency=OFF, dependencies=0, table=(("
@@ -413,7 +415,7 @@ void Generator::CreatePyWithIndenter2D()
     s << "mdb.models['Model-1'].interactions['Int-1'].includedPairs.setValuesInStep("
          "stepName='Step-1', useAllstar=ON)\n";
     s << "mdb.models['Model-1'].interactions['Int-1'].contactPropertyAssignments.appendInStep("
-         "stepName='Step-1', assignments=((GLOBAL, SELF, 'IntProp-1'), ))\n";
+         "stepName='Step-1', assignments=((GLOBAL, SELF, 'IntProp-2czs'), ))\n";
 
 
     // additional contact between surface and nodes
