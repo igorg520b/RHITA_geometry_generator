@@ -16,12 +16,14 @@ public:
     double indentationDepth = 0.05;
     double indenterOffset = 0;
 
+    double interactionRadius = 0.01; // for exponential interaction property
+
     bool insertCZs = false;
     bool plasticity = false;
     bool createCDP = false;
 
-    double timeToRun = 3;
-    int nFrames = 1000;
+    double timeToRun = 10;
+    int nFrames = 2000;
 
     bool loadWithIndenter = true;   // if false -> static load
 

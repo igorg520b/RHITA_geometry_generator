@@ -8,6 +8,7 @@
 #include <spdlog/spdlog.h>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 
 
 void Generator::Generate()
@@ -226,8 +227,8 @@ void Generator::CreatePyWithIndenter2D()
              "], n["<<c->nds[2]->globId<<
              "]), elemShape=QUAD4)\n";
 
-    s << "elemType_bulk = mesh.ElemType(elemCode=CPS3, elemLibrary=STANDARD, secondOrderAccuracy=OFF, distortionControl=DEFAULT, elemDeletion=ON)\n";
-
+    s << "elemType_bulk = mesh.ElemType(elemCode=CPS3, elemLibrary=STANDARD, secondOrderAccuracy=OFF,"
+         "distortionControl=ON, lengthRatio=0.1, elemDeletion=ON)\n";
     bool hasCZs = mesh2d.czs.size()>0;
     if(hasCZs)
         s << "elemType_coh = mesh.ElemType(elemCode=COH2D4, elemLibrary=STANDARD)\n";
@@ -335,6 +336,7 @@ void Generator::CreatePyWithIndenter2D()
     const double &d = indentationDepth;
     double b = sqrt(R*R - (R-d)*(R-d));
     double xOffset = indenterOffset == 0 ? notchOffset-b : indenterOffset;
+    xOffset -= interactionRadius;
     spdlog::info("xOffset {}; indenterOffset {}; notchOffset {}",xOffset, indenterOffset, notchOffset);
     //horizontalOffset += -sqrt(pow(indenterRadius,2)-pow(indenterRadius-indenterDepth,2))-1e-7;
     double yOffset = blockHeight-d+R;
@@ -385,15 +387,26 @@ void Generator::CreatePyWithIndenter2D()
     s << "mdb.models['Model-1'].ContactProperty('IntProp-1')\n";
 //    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
 //         "formulation=FRICTIONLESS)\n";
-    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].NormalBehavior("
-         "pressureOverclosure=HARD, allowSeparation=ON, "
-         "constraintEnforcementMethod=DEFAULT)\n";
+//    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].NormalBehavior("
+//         "pressureOverclosure=HARD, allowSeparation=ON, "
+//         "constraintEnforcementMethod=DEFAULT)\n";
 
-    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
-        "dependencies=0, directionality=ISOTROPIC, elasticSlipStiffness=None, "
-        "formulation=PENALTY, fraction=0.005, maximumElasticSlip=FRACTION, "
-        "pressureDependency=OFF, shearStressLimit=None, slipRateDependency=OFF, "
-        "table=((0.1, ), ), temperatureDependency=OFF)\n";
+//    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
+//        "dependencies=0, directionality=ISOTROPIC, elasticSlipStiffness=None, "
+//        "formulation=PENALTY, fraction=0.005, maximumElasticSlip=FRACTION, "
+//        "pressureDependency=OFF, shearStressLimit=None, slipRateDependency=OFF, "
+//        "table=((0.1, ), ), temperatureDependency=OFF)\n";
+
+      s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
+        "formulation=PENALTY, directionality=ISOTROPIC, slipRateDependency=OFF, "
+        "pressureDependency=OFF, temperatureDependency=OFF, dependencies=0, table=(("
+        "0.1, ), ), shearStressLimit=None, maximumElasticSlip=FRACTION, "
+        "fraction=0.005, elasticSlipStiffness=None)\n";
+
+       s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].NormalBehavior("
+        "pressureOverclosure=EXPONENTIAL, table=((20000000.0, 0.0), (0.0, " << interactionRadius << ")), "
+        "maxStiffness=None, constraintEnforcementMethod=DEFAULT)\n";
+
 
     // create interaction itself
     s << "mdb.models['Model-1'].ContactExp(name='Int-1', createStepName='Step-1')\n";
@@ -436,74 +449,128 @@ void Generator::CreatePyWithIndenter2D()
 void Generator::CreateCDP(std::ofstream &s)
 {
     if(!createCDP) return;
-    s<< "mat1.ConcreteDamagedPlasticity(table=((40.0, 0.1, 1.16, 0.6667, 0.0), ))\n";
 
-    s<< "mat1.concreteDamagedPlasticity.ConcreteCompressionHardening("
-        "table=("
-            "(6971831.,0.),"
-            "(9281690.,0.0000804109631874323),"
-            "(9633803.,0.000118157290909088),"
-            "(9929577.,0.000173993508417516),"
-            "(10000000.,0.000237128729517396),"
-            "(9971831.,0.000311218618855219),"
-            "(9816901.,0.000393483065768806),"
-            "(9507042.,0.000498871848484853),"
-            "(9000000.,0.000649819856565657),"
-            "(8225352.,0.000854161868911338),"
-            "(7239437.,0.00111153799573512),"
-            "(6056338.,0.00146179345903479),"
-            "(5140845.,0.00181778491806959),"
-            "(4492958.,0.0021913523728395),"
-            "(3985915.,0.00270893049203143),"
-            "(3732394.,0.00308007949607183),"
-            "(3535211.,0.00345086872143659),"
-            "(3295775.,0.00397419272525252)"
-    "))\n";
+    // COMPRESSIVE PARAMETERS
+    std::vector<double> CompressionStrainTable
+    {
+        0,
+        8.04109631874323E-05,
+        0.000118157290909088,
+        0.000173993508417516,
+        0.000237128729517396,
+        0.000311218618855219,
+        0.000393483065768806,
+        0.000498871848484853,
+        0.000649819856565657,
+        0.000854161868911338,
+        0.00111153799573512,
+        0.00146179345903479,
+        0.00348888888729517
+    };
 
-    s<< "mat1.concreteDamagedPlasticity.ConcreteTensionStiffening("
-        "table=("
-            "(1000000.,0.),"
-            "(499352.,0.0000695164364861971),"
-            "(143067.,0.000134103664386587),"
-            "(40989.3,0.000170445632680081),"
-            "(11743.6,0.000198695155368396)"
-            "))\n";
+    std::vector<double> ConcreteCompressionHardening {
+        1742957.75,
+        2320422.5,
+        2408450.75,
+        2482394.25,
+        2500000,
+        2492957.75,
+        2454225.25,
+        2376760.5,
+        2250000,
+        2056338,
+        1809859.25,
+        1514084.5,
+        25000
+    };
 
-    s << "mat1.concreteDamagedPlasticity.ConcreteCompressionDamage("
-                "table=("
-            "(0.,0.),"
-            "(0.,.0000804109631874323),"
-            "(0.,0.000118157290909088),"
-            "(0.,0.000173993508417516),"
-            "(0.,0.000237128729517396),"
-            "(0.00281690000000001,0.000311218618855219),"
-            "(0.0183099,0.000393483065768806),"
-            "(0.0492958,0.000498871848484853),"
-            "(0.1,0.000649819856565657),"
-            "(0.1774648,0.000854161868911338),"
-            "(0.2760563,0.00111153799573512),"
-            "(0.3943662,0.00146179345903479),"
-            "(0.4859155,0.00181778491806959),"
-            "(0.5507042,0.0021913523728395),"
-            "(0.6014085,0.00270893049203143),"
-            "(0.6267606,0.00308007949607183),"
-            "(0.6464789,0.00345086872143659),"
-            "(0.6704225,0.00397419272525252)"
-            "))\n";
+    std::vector<double> ConcreteCompressionDamage {
+        0,
+        0,
+        0,
+        0,
+        0,
+        0.00281690000000001,
+        0.0183099,
+        0.0492958,
+        0.1,
+        0.1774648,
+        0.2760563,
+        0.3943662,
+        0.99
+    };
 
-    s<<"mat1.concreteDamagedPlasticity.ConcreteTensionDamage("
-        "table=("
-            "(0.,0.),"
-            "(0.500648,.0000695164364861971),"
-            "(0.856933,0.000134103664386587),"
-            "(0.9590107,0.000170445632680081),"
-            "(0.9882564,0.000198695155368396)"
-            "))\n";
+    // TENSILE PARAMETERS
+    std::vector<double> TensionStrainTable
+    {
+        0,
+        0.00444444508193041,
+        0.0128888907375982
+    };
 
+    std::vector<double> ConcreteTensionStiffening {
+        10000000,
+        5000000,
+        1000000
+    };
+
+    std::vector<double> ConcreteTensionDamage {
+        0,
+        0.5,
+        0.9
+    };
+
+    s << "mat1.ConcreteDamagedPlasticity(table=((40.0, 0.1, 1.16, 0.6667, 0.0), ))\n";
+
+    s << std::setprecision(15);
+
+    s << "mat1.concreteDamagedPlasticity.ConcreteCompressionHardening(table=(";
+    for(int i=0;i<ConcreteCompressionHardening.size();i++)
+    {
+        const double stress = ConcreteCompressionHardening[i];
+        const double strain = CompressionStrainTable[i];
+        s << "(" << stress << ","  << strain << ")";
+        if(i!=ConcreteCompressionHardening.size()-1) s << ",";
+    }
+    s << "))\n";
+
+    s << "mat1.concreteDamagedPlasticity.ConcreteTensionStiffening(table=(";
+    for(int i=0;i<ConcreteTensionStiffening.size();i++)
+    {
+        const double stress = ConcreteTensionStiffening[i];
+        const double strain = TensionStrainTable[i];
+        s << "(" << stress << ","  << strain << ")";
+        if(i!=ConcreteTensionStiffening.size()-1) s << ",";
+    }
+    s << "))\n";
+
+    s << "mat1.concreteDamagedPlasticity.ConcreteCompressionDamage(table=(";
+    for(int i=0;i<ConcreteCompressionDamage.size();i++)
+    {
+        const double damage = ConcreteCompressionDamage[i];
+        const double strain = CompressionStrainTable[i];
+        s << "(" << damage << ","  << strain << ")";
+        if(i!=ConcreteCompressionDamage.size()-1) s << ",";
+    }
+    s << "))\n";
+
+    s << "mat1.concreteDamagedPlasticity.ConcreteTensionDamage(table=(";
+    for(int i=0;i<ConcreteTensionDamage.size();i++)
+    {
+        const double damage = ConcreteTensionDamage[i];
+        const double strain = TensionStrainTable[i];
+        s << "(" << damage << ","  << strain << ")";
+        if(i!=ConcreteTensionDamage.size()-1) s << ",";
+    }
+    s << "))\n";
+
+    //*Concrete Failure,TYPE=Strain
+    //0.0128889,  0.00348889, 0.9,  0.99
+
+    std::cout << "*Concrete Failure,TYPE=Strain\n";
+    std::cout << TensionStrainTable.back() << ",";
+    std::cout << CompressionStrainTable.back() << ",";
+    std::cout << ConcreteTensionDamage.back() << ",";
+    std::cout << ConcreteCompressionDamage.back() << '\n';
 }
 
-
-
-/*
-
-*/
