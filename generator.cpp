@@ -231,7 +231,7 @@ void Generator::CreatePyWithIndenter2D()
          "distortionControl=ON, lengthRatio=0.1, elemDeletion=ON)\n";
     bool hasCZs = mesh2d.czs.size()>0;
     if(hasCZs)
-        s << "elemType_coh = mesh.ElemType(elemCode=COH2D4, elemLibrary=STANDARD)\n";
+        s << "elemType_coh = mesh.ElemType(elemCode=COH2D4, elemLibrary=STANDARD,elemDeletion=ON)\n";
 
 
     // region1 - bulk elements
@@ -282,9 +282,9 @@ void Generator::CreatePyWithIndenter2D()
     {
         s << "mat2 = mdb.models['Model-1'].Material(name='Material-2-czs')\n";
         s << "mat2.Density(table=((1.0, ), ))\n";
-        s << "mat2.MaxsDamageInitiation(table=((" << czsStrength << "," << czsStrength/2 << "," << czsStrength/2 << "), ))\n";
+        s << "mat2.MaxsDamageInitiation(table=((" << czsStrength << "," << czsStrength*2 << "," << czsStrength*2 << "), ))\n";
         s << "mat2.maxsDamageInitiation.DamageEvolution(type=ENERGY, table=((" << czEnergy << ", ), ))\n";
-        s << "mat2.Elastic(type=TRACTION, table=((" << czElasticity << "," << czElasticity/2 << "," << czElasticity/2 << "), ))\n";
+        s << "mat2.Elastic(type=TRACTION, table=((" << czElasticity << "," << czElasticity << "," << czElasticity << "), ))\n";
 
         s << "mdb.models['Model-1'].CohesiveSection(name='Section-2-czs', "
              "material='Material-2-czs', response=TRACTION_SEPARATION, "
@@ -411,11 +411,11 @@ void Generator::CreatePyWithIndenter2D()
 
 
     // create interaction itself
-    s << "mdb.models['Model-1'].ContactExp(name='Int-1', createStepName='Step-1')\n";
-    s << "mdb.models['Model-1'].interactions['Int-1'].includedPairs.setValuesInStep("
-         "stepName='Step-1', useAllstar=ON)\n";
-    s << "mdb.models['Model-1'].interactions['Int-1'].contactPropertyAssignments.appendInStep("
-         "stepName='Step-1', assignments=((GLOBAL, SELF, 'IntProp-2czs'), ))\n";
+//    s << "mdb.models['Model-1'].ContactExp(name='Int-1', createStepName='Step-1')\n";
+//    s << "mdb.models['Model-1'].interactions['Int-1'].includedPairs.setValuesInStep("
+//         "stepName='Step-1', useAllstar=ON)\n";
+//    s << "mdb.models['Model-1'].interactions['Int-1'].contactPropertyAssignments.appendInStep("
+//         "stepName='Step-1', assignments=((GLOBAL, SELF, 'IntProp-2czs'), ))\n";
 
 
     // additional contact between surface and nodes
