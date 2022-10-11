@@ -10,7 +10,7 @@ class Generator
 public:
 
     std::string outputFileName = "default";
-    double elemSize = 0.025;
+    double elemSize = 0.01;
     double notchOffset = 1.1;
     double indenterRadius = 0.161925;
     double indentationDepth = 0.05;
@@ -21,6 +21,8 @@ public:
     bool insertCZs = false;
     bool plasticity = false;
     bool createCDP = false;
+    bool createVUEL = false;    // not used
+    bool createTwoLayers = false;
 
     double timeToRun = 10;
     int nFrames = 2000;
@@ -36,10 +38,13 @@ public:
     constexpr static double czEnergy = 50;
     constexpr static double indentationRate = 0.2;
 
-    icy::Mesh2D mesh2d;
+    icy::Mesh2D mesh2d, meshUpperBlock;
 
     void Generate();
     void LoadFromFile(std::string MSHFileName);
+    void CreateTwoLayers(std::string MSHFileName);  // load the bottom part from file and generate the upper part
+
+
     void CreatePyWithIndenter2D();
     void CreateCDP(std::ofstream &s);
 };

@@ -197,6 +197,8 @@ void Generator::LoadFromFile(std::string MSHFileName)
 
 void Generator::CreatePyWithIndenter2D()
 {
+    spdlog::info("createVUEL {}", createVUEL);
+
     // SAVE as .py
     std::ofstream s;
     s.open(outputFileName+".py", std::ios_base::trunc|std::ios_base::out);
@@ -229,7 +231,9 @@ void Generator::CreatePyWithIndenter2D()
 
     s << "elemType_bulk = mesh.ElemType(elemCode=CPS3, elemLibrary=STANDARD, secondOrderAccuracy=OFF,"
          "distortionControl=ON, lengthRatio=0.1, elemDeletion=ON)\n";
+
     bool hasCZs = mesh2d.czs.size()>0;
+
     if(hasCZs)
         s << "elemType_coh = mesh.ElemType(elemCode=COH2D4, elemLibrary=STANDARD,elemDeletion=ON)\n";
 
@@ -451,7 +455,7 @@ void Generator::CreatePyWithIndenter2D()
 void Generator::CreateCDP(std::ofstream &s)
 {
     if(!createCDP) return;
-
+/*
     // COMPRESSIVE PARAMETERS
     std::vector<double> CompressionStrainTable
     {
@@ -501,7 +505,57 @@ void Generator::CreateCDP(std::ofstream &s)
         0.3943662,
         0.99
     };
+*/
+    std::vector<double> CompressionStrainTable
+    {
+        0,
+        0.00120616444781149,
+        0.00177235936363632,
+        0.00260990262626274,
+        0.00355693094276095,
+        0.00466827928282829,
+        0.00590224598653209,
+        0.00748307772727279,
+        0.00974729784848485,
+        0.0128124280336701,
+        0.0166730699360268,
+        0.0219269018855219,
+        0.0448333333094276
+    };
 
+    std::vector<double> ConcreteCompressionHardening {
+        69718310,
+        92816900,
+        96338030,
+        99295770,
+        100000000,
+        99718310,
+        98169010,
+        95070420,
+        90000000,
+        82253520,
+        72394370,
+        60563380,
+        1000000
+    };
+
+    std::vector<double> ConcreteCompressionDamage {
+        0,
+        0,
+        0,
+        0,
+        0,
+        0.00281690000000001,
+        0.0183099,
+        0.0492958,
+        0.1,
+        0.1774648,
+        0.2760563,
+        0.3943662,
+        0.99
+    };
+
+/*
     // TENSILE PARAMETERS
     std::vector<double> TensionStrainTable
     {
@@ -521,6 +575,15 @@ void Generator::CreateCDP(std::ofstream &s)
         0.5,
         0.9
     };
+*/
+
+    // TENSILE PARAMETERS
+    std::vector<double> &TensionStrainTable = CompressionStrainTable;
+
+    std::vector<double> &ConcreteTensionStiffening = ConcreteCompressionHardening;
+
+    std::vector<double> &ConcreteTensionDamage = ConcreteCompressionDamage;
+
 
     s << "mat1.ConcreteDamagedPlasticity(table=((40.0, 0.1, 1.16, 0.6667, 0.0), ))\n";
 
@@ -576,3 +639,275 @@ void Generator::CreateCDP(std::ofstream &s)
     std::cout << ConcreteCompressionDamage.back() << '\n';
 }
 
+
+
+void Generator::CreateTwoLayers(std::string MSHFileName)
+{
+    gmsh::initialize();
+
+    gmsh::option::setNumber("General.Terminal", 1);
+    gmsh::model::add("indenter1");
+
+    const double upperBlockHeight = indentationDepth*2;
+
+    int pt0 = gmsh::model::occ::addPoint(0, 0, 0);
+    int pt1 = gmsh::model::occ::addPoint(0, upperBlockHeight, 0);
+    int pt2 = gmsh::model::occ::addPoint(blockLength, upperBlockHeight, 0);
+    int pt3 = gmsh::model::occ::addPoint(blockLength, 0, 0);
+
+    int line1 = gmsh::model::occ::addLine(pt0,pt1);
+    int line2 = gmsh::model::occ::addLine(pt1,pt2);
+    int line3 = gmsh::model::occ::addLine(pt2,pt3);
+    int line4 = gmsh::model::occ::addLine(pt3,pt0);
+
+    int loopTag = gmsh::model::occ::addCurveLoop({line1,line2,line3,line4});
+    gmsh::model::occ::addPlaneSurface({loopTag});
+
+    gmsh::model::occ::synchronize();
+    int groupTag2 = gmsh::model::addPhysicalGroup(1, {line4});
+
+    gmsh::model::occ::synchronize();
+
+    gmsh::option::setNumber("Mesh.MeshSizeMax", elemSize);
+    gmsh::option::setNumber("Mesh.Algorithm", 5);
+    gmsh::model::mesh::generate(2);
+
+    // now load into MESH2D
+    std::vector<std::size_t> nodeTags;
+    std::vector<double> nodeCoords, parametricCoords;
+    std::unordered_map<std::size_t, std::size_t> mtags; // gmsh nodeTag -> sequential position in nodes[]
+
+    // GET NODES
+    gmsh::model::mesh::getNodesByElementType(2, nodeTags, nodeCoords, parametricCoords);
+    // set the size of the resulting nodes array
+    for(unsigned i=0;i<nodeTags.size();i++)
+    {
+        std::size_t tag = nodeTags[i];
+        if(mtags.count(tag)>0) continue; // throw std::runtime_error("GetFromGmsh() node duplication in deformable");
+
+        icy::Node2D *nd = meshUpperBlock.AddNode();
+        mtags[tag] = nd->globId;
+        nd->x0 = Eigen::Vector2d(nodeCoords[i*3+0], nodeCoords[i*3+1]);
+    }
+
+    // mark node's groups
+    nodeTags.clear();
+    nodeCoords.clear();
+    gmsh::model::mesh::getNodesForPhysicalGroup(1, groupTag2, nodeTags, nodeCoords);
+    for(unsigned j=0;j<nodeTags.size();j++) meshUpperBlock.nodes[mtags[nodeTags[j]]]->group=2;
+    spdlog::info("groupTag2 nodes {}",nodeTags.size());
+
+    // get elements
+    std::vector<std::size_t> trisTags, nodeTagsInTris;
+    gmsh::model::mesh::getElementsByType(2, trisTags, nodeTagsInTris);
+
+    for(std::size_t i=0;i<trisTags.size();i++)
+    {
+        icy::Element2D *elem = meshUpperBlock.AddElement();
+        elem->grainId = (int)i;
+        for(int k=0;k<3;k++) elem->nds[k] = meshUpperBlock.nodes[mtags.at(nodeTagsInTris[i*3+k])];
+    }
+
+    // gmsh::write(outputFileName + ".msh");
+    gmsh::finalize();
+
+
+
+    for(icy::Element2D *elem : meshUpperBlock.elems) elem->Precompute();     // Dm matrix and volume
+
+    spdlog::info("upper block: nodes {}; elems {}; czs {}", meshUpperBlock.nodes.size(), meshUpperBlock.elems.size(), meshUpperBlock.czs.size());
+
+    // UPPER BLOCK CREATED
+
+
+
+
+    // CREATE .PY
+
+    std::ofstream s;
+    s.open(outputFileName+".py", std::ios_base::trunc|std::ios_base::out);
+    s << std::setprecision(9);
+    s << "from abaqus import *\n";
+    s << "from abaqusConstants import *\n";
+    s << "from caeModules import *\n";
+
+    s << "import mesh\n";
+    s << "import regionToolset\n";
+    s << "import os\n";
+
+    s << "p = mdb.models['Model-1'].Part(name='MyPart1', dimensionality=TWO_D_PLANAR, type=DEFORMABLE_BODY)\n";
+
+    for(icy::Node2D *nd : meshUpperBlock.nodes)
+        s << "p.Node(coordinates=(" << nd->x0[0] << "," << nd->x0[1] << ",0))\n";
+
+    s << "n = p.nodes\n";
+
+    for(icy::Element2D *e : meshUpperBlock.elems)
+        s << "p.Element(nodes=(n["<<e->nds[0]->globId<<"],n["<<e->nds[1]->globId<<
+             "],n["<<e->nds[2]->globId<<"]), elemShape=TRI3)\n";
+
+    s << "elemType_bulk = mesh.ElemType(elemCode=CPS3, elemLibrary=STANDARD, secondOrderAccuracy=OFF,"
+         "distortionControl=ON, lengthRatio=0.1, elemDeletion=ON)\n";
+
+    // region1 - bulk elements
+    s << "region1 = p.elements[0:" << meshUpperBlock.elems.size() << "]\n";
+    s << "p.setElementType(regions=(region1,), elemTypes=(elemType_bulk,))\n";
+    s << "p.Set(elements=(region1,), name='Set-1-elems')\n";
+
+
+    // region - pinned nodes
+    s << "region3pinned = (";
+    for(icy::Node2D *nd : meshUpperBlock.nodes)
+        if(nd->group==2)
+            s << "p.nodes["<<nd->globId<<":"<<nd->globId+1<<"],";
+    s << ")\n";
+    s << "p.Set(nodes=region3pinned,name='Set3-pinned')\n";
+
+    // region - all nodes
+    s << "region4allNodes = (";
+    for(icy::Node2D *nd : meshUpperBlock.nodes)
+            s << "p.nodes["<<nd->globId<<":"<<nd->globId+1<<"],";
+    s << ")\n";
+    s << "p.Set(nodes=region4allNodes,name='Set4-all')\n";
+
+    // create bulk material
+    s << "mat1 = mdb.models['Model-1'].Material(name='Material-1-bulk')\n";
+    s << "mat1.Density(table=((900.0, ), ))\n";
+    s << "mat1.Elastic(table=((" << YoungsModulus << ", 0.3), ))\n";
+
+    CreateCDP(s);
+
+    // sections
+    s << "mdb.models['Model-1'].HomogeneousSolidSection(name='Section-1-bulk', "
+         "material='Material-1-bulk', thickness=None)\n";
+
+    // section assignments
+    s << "region = p.sets['Set-1-elems']\n";
+    s << "p.SectionAssignment(region=region, sectionName='Section-1-bulk', offset=0.0, "
+         "offsetType=MIDDLE_SURFACE, offsetField='', "
+         "thicknessAssignment=FROM_SECTION)\n";
+
+
+    // indenter
+    s << "s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=2.0)\n";
+    s << "g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints\n";
+    s << "s.ArcByCenterEnds(center=(0.0, 0.0), point1=("<< -indenterRadius << ", 0.0), point2=(" << indenterRadius << ", -0.0125), direction=COUNTERCLOCKWISE)\n";
+
+    s << "p2 = mdb.models['Model-1'].Part(name='Part-2', dimensionality=TWO_D_PLANAR, type=ANALYTIC_RIGID_SURFACE)\n";
+
+    s << "p2.AnalyticRigidSurf2DPlanar(sketch=s)\n";
+
+
+    s << "v1 = p2.vertices\n";
+
+    s << "p2.ReferencePoint(point=p2.InterestingPoint(p2.edges[0], CENTER))\n";
+
+
+    // assembly
+    s << "a1 = mdb.models['Model-1'].rootAssembly\n";
+    s << "a1.DatumCsysByDefault(CARTESIAN)\n";
+
+    // add and rotate main part
+    s << "inst1 = a1.Instance(name='MyPart1-1', part=p, dependent=ON)\n";
+
+    const double &R = indenterRadius;
+    const double &d = indentationDepth;
+    double b = sqrt(R*R - (R-d)*(R-d));
+    double xOffset = -b;
+    xOffset -= interactionRadius*1.3;
+    spdlog::info("xOffset {}; indenterOffset {};",xOffset, indenterOffset);
+    //horizontalOffset += -sqrt(pow(indenterRadius,2)-pow(indenterRadius-indenterDepth,2))-1e-7;
+    double yOffset = upperBlockHeight-d+R;
+
+    double zOffset = 0;
+    s << "a1.Instance(name='Part-2-1', part=p2, dependent=ON)\n";
+    // rotate indenter
+    s << "a1.rotate(instanceList=('Part-2-1', ), axisPoint=(0.0, 0.0, 0.0)," << "axisDirection=(0.0, 0.0, 1.0), angle=45.0)\n";
+    s << "a1.translate(instanceList=('Part-2-1', ), vector=("<< xOffset << ", " << yOffset << ", " << zOffset << "))\n";
+
+    // create step
+    s << "mdb.models['Model-1'].ExplicitDynamicsStep(name='Step-1', previous='Initial', timePeriod=" << timeToRun << ", improvedDtMethod=ON)\n";
+
+    // create field output request
+    s << "mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(numIntervals=" << nFrames <<
+         ",variables=('S', 'SVAVG', 'PE', 'PEVAVG', 'PEEQ', 'PEEQVAVG', 'LE', "
+             "'U', 'V', 'A', 'RF', 'CSTRESS', 'DAMAGEC', 'DAMAGET', 'DAMAGESHR', 'EVF', "
+             "'STATUS'))\n";
+
+    // gravity load
+    s << "mdb.models['Model-1'].Gravity(name='Load-1', createStepName='Step-1',comp2=-10.0, distributionType=UNIFORM, field='')\n";
+
+    // BC - pinned nodes
+    s << "region = inst1.sets['Set3-pinned']\n";
+    s << "mdb.models['Model-1'].EncastreBC(name='BC-1', createStepName='Initial', region=region, localCsys=None)\n";
+
+    // BC - moving indenter
+    double xVelocity = indentationRate;
+    double yVelocity = 0;
+    s << "r1 = a1.instances['Part-2-1'].referencePoints\n";
+    s << "refPoints1=(r1[2], )\n";
+    s << "region = a1.Set(referencePoints=refPoints1, name='Set-1-indenterRP')\n";
+    s << "mdb.models['Model-1'].VelocityBC(name='BC-2', createStepName='Step-1', "
+         "region=region, v1="<< xVelocity << ", v2=" << yVelocity << ", v3=0.0, vr1=0.0, vr2=0.0, vr3=0.0, "
+                                                                     "amplitude=UNSET, localCsys=None, distributionType=UNIFORM, fieldName='')\n";
+
+    s << "ed1 = a1.instances['Part-2-1'].edges\n";
+    s << "side2Edges1 = ed1[0:1]\n";
+    s << "a1.Surface(name='Surf-1', side2Edges=side2Edges1)\n";
+
+    s << "mdb.models['Model-1'].RigidBody(name='Constraint-1', refPointRegion=regionToolset.Region(referencePoints="
+         "(a1.instances['Part-2-1'].referencePoints[2],)), surfaceRegion=a1.surfaces['Surf-1'])\n";
+
+
+    // rigid body constraint
+
+    // create interaction property
+    s << "mdb.models['Model-1'].ContactProperty('IntProp-2czs')\n";
+
+    s << "mdb.models['Model-1'].interactionProperties['IntProp-2czs'].TangentialBehavior("
+         "formulation=FRICTIONLESS)\n";
+    s << "mdb.models['Model-1'].interactionProperties['IntProp-2czs'].NormalBehavior("
+         "pressureOverclosure=HARD, allowSeparation=ON, "
+         "constraintEnforcementMethod=DEFAULT)\n";
+
+    s << "mdb.models['Model-1'].ContactProperty('IntProp-1')\n";
+      s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
+        "formulation=PENALTY, directionality=ISOTROPIC, slipRateDependency=OFF, "
+        "pressureDependency=OFF, temperatureDependency=OFF, dependencies=0, table=(("
+        "0.1, ), ), shearStressLimit=None, maximumElasticSlip=FRACTION, "
+        "fraction=0.005, elasticSlipStiffness=None)\n";
+
+       s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].NormalBehavior("
+        "pressureOverclosure=EXPONENTIAL, table=((20000000.0, 0.0), (0.0, " << interactionRadius << ")), "
+        "maxStiffness=None, constraintEnforcementMethod=DEFAULT)\n";
+
+
+    // contact between surface and nodes
+    s << "mdb.models['Model-1'].SurfaceToSurfaceContactExp(clearanceRegion=None,"
+        "createStepName='Initial', datumAxis=None, initialClearance=OMIT, "
+        "interactionProperty='IntProp-1', main="
+        "a1.surfaces['Surf-1'], "
+        "mechanicalConstraint=KINEMATIC, name='Int-2', secondary="
+        "a1.sets['MyPart1-1.Set4-all'], sliding=FINITE)\n";
+
+
+    // record indenter force
+
+    s << "mdb.models['Model-1'].HistoryOutputRequest(createStepName='Step-1', name="
+         "'H-Output-2', rebar=EXCLUDE, region="
+         "mdb.models['Model-1'].rootAssembly.sets['Set-1-indenterRP'], sectionPoints="
+         "DEFAULT, timeInterval=0.0001, variables=('RF1','RF2', ))\n";
+
+    //create job
+    s << "mdb.Job(name='" << outputFileName << "', model='Model-1', description='', type=ANALYSIS,"
+                                        "atTime=None, waitMinutes=0, waitHours=0, queue=None, memory=90,"
+                                        "memoryUnits=PERCENTAGE, explicitPrecision=DOUBLE,"
+                                        "nodalOutputPrecision=FULL, echoPrint=OFF, modelPrint=OFF,"
+                                        "contactPrint=OFF, historyPrint=OFF, userSubroutine='', scratch='',"
+                                        "resultsFormat=ODB, parallelizationMethodExplicit=DOMAIN, numDomains="
+      <<numberOfCores<<","
+                       "activateLoadBalancing=False, numThreadsPerMpiProcess=1,"
+                       "multiprocessingMode=DEFAULT, numCpus="<<numberOfCores<<")\n";
+
+    s.close();
+}

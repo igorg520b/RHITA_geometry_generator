@@ -41,6 +41,8 @@ int main(int argc, char *argv[])
 
     QCommandLineOption insertCZSOption(QStringList() << "z" << "czs", QCoreApplication::translate("main", "InsertCZS"));
     QCommandLineOption createCDPOption(QStringList() << "cdp", QCoreApplication::translate("main", "Create CDP material"));
+    QCommandLineOption createVUELOption(QStringList() << "vuel", QCoreApplication::translate("main", "Create CDP material"));
+    QCommandLineOption createTwoLayersOption(QStringList() << "twoLayers", QCoreApplication::translate("main", "Create CDP material"));
 
     parser.addOption(outputFileOption);
     parser.addOption(indenterOption);
@@ -50,6 +52,8 @@ int main(int argc, char *argv[])
     parser.addOption(insertCZSOption);
     parser.addOption(loadFileOption);
     parser.addOption(createCDPOption);
+    parser.addOption(createVUELOption);
+    parser.addOption(createTwoLayersOption);
 
     // -o test.msh -i 0.161925 -e 0.1 -n 1.1
 
@@ -57,7 +61,6 @@ int main(int argc, char *argv[])
     parser.process(a);
 
     Generator g;
-
 
     if(parser.isSet(outputFileOption)) g.outputFileName = parser.value(outputFileOption).toStdString();
     if(parser.isSet(indenterOption)) g.indenterRadius = parser.value(indenterOption).toDouble();
@@ -67,10 +70,13 @@ int main(int argc, char *argv[])
     if(parser.isSet(indentationDepthOption)) g.indentationDepth = parser.value(indentationDepthOption).toDouble();
     if(parser.isSet(insertCZSOption)) g.insertCZs = true;
     if(parser.isSet(createCDPOption)) g.createCDP = true;
+    if(parser.isSet(createVUELOption)) g.createVUEL = true;
+    if(parser.isSet(createTwoLayersOption)) g.createTwoLayers = true;
 
-    if(parser.isSet(loadFileOption))
+    if(parser.isSet(createTwoLayersOption))
+        g.CreateTwoLayers(parser.value(loadFileOption).toStdString());
+    else if(parser.isSet(loadFileOption))
         g.LoadFromFile(parser.value(loadFileOption).toStdString());
     else
         g.Generate();
-
 }
