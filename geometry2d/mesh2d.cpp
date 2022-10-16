@@ -15,7 +15,7 @@
 #include <map>
 
 #include <Eigen/Core>
-
+#include <spdlog/spdlog.h>
 
 icy::SimplePool<icy::Node2D> icy::Mesh2D::NodeFactory(reserveConst);
 icy::SimplePool<icy::Element2D> icy::Mesh2D::ElementFactory(reserveConst);
@@ -115,3 +115,12 @@ void icy::Mesh2D::LoadMSH(const std::string &fileName, bool insertCZs)
     qDebug() << "LoadMSH 2D done";
 }
 
+void icy::Mesh2D::EvaluateMinMax()
+{
+    auto res = std::minmax_element(nodes.begin(),nodes.end(),
+                                   [](icy::Node2D *nd1, icy::Node2D *nd2)
+    {return nd1->x0.y() < nd2->x0.y();});
+    Ymin = (*res.first)->x0.y();
+    Ymax = (*res.second)->x0.y();
+    spdlog::info("Ymin {}; Ymax {}",Ymin, Ymax);
+}

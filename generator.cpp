@@ -509,19 +509,18 @@ void Generator::CreateCDP(std::ofstream &s)
     std::vector<double> CompressionStrainTable
     {
         0,
-        0.000804109631874325,
-        0.00118157290909088,
-        0.00173993508417516,
-        0.00237128729517396,
-        0.00311218618855219,
-        0.00393483065768806,
-        0.00498871848484853,
-        0.00649819856565657,
-        0.00854161868911338,
-        0.0111153799573512,
-        0.0146179345903479,
-        0.0298888888729517
-
+        0.000241232889562297,
+        0.000354471872727266,
+        0.000521980525252549,
+        0.00071138618855219,
+        0.000933655856565658,
+        0.00118044919730642,
+        0.00149661554545456,
+        0.00194945956969697,
+        0.00256248560673401,
+        0.00333461398720537,
+        0.00438538037710438,
+        0.00896666666188552
     };
 
     std::vector<double> ConcreteCompressionHardening {
@@ -717,6 +716,7 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
     for(icy::Element2D *elem : meshUpperBlock.elems) elem->Precompute();     // Dm matrix and volume
 
     spdlog::info("upper block: nodes {}; elems {}; czs {}", meshUpperBlock.nodes.size(), meshUpperBlock.elems.size(), meshUpperBlock.czs.size());
+    meshUpperBlock.EvaluateMinMax();
 
     // UPPER BLOCK CREATED
 
@@ -770,6 +770,53 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
             s << "p.nodes["<<nd->globId<<":"<<nd->globId+1<<"],";
     s << ")\n";
     s << "p.Set(nodes=region4allNodes,name='Set4-all')\n";
+
+
+    // bottom surface of the upper block
+    std::vector<icy::Element2D*> f1elems, f2elems, f3elems;
+    for(icy::Element2D *elem : meshUpperBlock.elems)
+    {
+        if(elem->nds[0]->x0.y() == meshUpperBlock.Ymin &&
+                elem->nds[1]->x0.y() == meshUpperBlock.Ymin) f1elems.push_back(elem);
+        if(elem->nds[1]->x0.y() == meshUpperBlock.Ymin &&
+                elem->nds[2]->x0.y() == meshUpperBlock.Ymin) f2elems.push_back(elem);
+        if(elem->nds[2]->x0.y() == meshUpperBlock.Ymin &&
+                elem->nds[0]->x0.y() == meshUpperBlock.Ymin) f3elems.push_back(elem);
+    }
+    spdlog::info("f1elems {}; f2elems {}; f3elems {}", f1elems.size(), f2elems.size(), f3elems.size());
+
+    s << "mdb.models['Model-1'].parts['MyPart1'].Surface(";
+    if(!f1elems.empty())
+    {
+        s << "face1Elements=(";
+        for(icy::Element2D *elem : f1elems) s << "p.elements[" << elem->elemId << ":" << elem->elemId+1 << "],";
+        s << ")";
+    }
+    if(!f1elems.empty() && !f2elems.empty()) s << ",";
+    if(!f2elems.empty())
+    {
+        s << "face2Elements=(";
+        for(icy::Element2D *elem : f2elems) s << "p.elements[" << elem->elemId << ":" << elem->elemId+1 << "],";
+        s << ")";
+    }
+    if(!(f2elems.empty() && f2elems.empty()) && !f3elems.empty()) s << ",";
+    if(!f3elems.empty())
+    {
+        s << "face3Elements=(";
+        for(icy::Element2D *elem : f3elems) s << "p.elements[" << elem->elemId << ":" << elem->elemId+1 << "],";
+        s << ")";
+    }
+    s << ", name='Surf-1')\n";
+
+
+
+    /*
+mdb.models['Model-1'].parts['MyPart1'].Surface(face2Elements=
+    mdb.models['Model-1'].parts['MyPart1'].elements.getSequenceFromMask(mask=(
+    '[#0:5 #1 #0:96 #8000000 #0:9 #4000000 #100000',
+    ' #0:9 #1000000 #0:6 #40001 #0:42 #2080 ]', ), ), name='Surf-1')
+*/
+
 
     // create bulk material
     s << "mat1 = mdb.models['Model-1'].Material(name='Material-1-bulk')\n";

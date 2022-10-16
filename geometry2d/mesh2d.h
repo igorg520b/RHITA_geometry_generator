@@ -36,6 +36,9 @@ public:
 
     void LoadMSH(const std::string &fileName, bool insertCZs);
 
+    double Ymin, Ymax;
+    void EvaluateMinMax();
+
 private:
     constexpr static unsigned reserveConst = 100000;
     static SimplePool<Node2D> NodeFactory;
