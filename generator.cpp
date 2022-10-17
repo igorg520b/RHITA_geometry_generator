@@ -1009,13 +1009,9 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
         "a1.sets['MyPart1-1.Set4-all'], sliding=FINITE)\n";
 
     // tie constraint
-    /*
-mdb.models['Model-1'].Tie(adjust=ON, main=
-    mdb.models['Model-1'].rootAssembly.instances['MyPart1-1'].surfaces['Surf-1']
-    , name='Constraint-2', positionToleranceMethod=COMPUTED, secondary=
-    mdb.models['Model-1'].rootAssembly.instances['PartLowerBlock-1'].surfaces['Surf-2']
-    , thickness=ON, tieRotations=ON)
-*/
+    s << "mdb.models['Model-1'].Tie(adjust=ON, main=inst1.surfaces['Surf-1'],"
+    "name='Constraint-2', positionToleranceMethod=COMPUTED,"
+    "secondary=inst3.surfaces['Surf-2'], thickness=ON, tieRotations=ON)\n";
 
 
     // record indenter force
