@@ -38,7 +38,7 @@ public:
     constexpr static double czEnergy = 50;
     constexpr static double indentationRate = 0.2;
 
-    icy::Mesh2D mesh2d, meshUpperBlock;
+    icy::Mesh2D mesh2d, meshUpperBlock, meshLowerBlock;
 
     void Generate();
     void LoadFromFile(std::string MSHFileName);

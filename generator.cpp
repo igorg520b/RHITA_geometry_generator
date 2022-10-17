@@ -455,57 +455,7 @@ void Generator::CreatePyWithIndenter2D()
 void Generator::CreateCDP(std::ofstream &s)
 {
     if(!createCDP) return;
-/*
-    // COMPRESSIVE PARAMETERS
-    std::vector<double> CompressionStrainTable
-    {
-        0,
-        8.04109631874323E-05,
-        0.000118157290909088,
-        0.000173993508417516,
-        0.000237128729517396,
-        0.000311218618855219,
-        0.000393483065768806,
-        0.000498871848484853,
-        0.000649819856565657,
-        0.000854161868911338,
-        0.00111153799573512,
-        0.00146179345903479,
-        0.00348888888729517
-    };
 
-    std::vector<double> ConcreteCompressionHardening {
-        1742957.75,
-        2320422.5,
-        2408450.75,
-        2482394.25,
-        2500000,
-        2492957.75,
-        2454225.25,
-        2376760.5,
-        2250000,
-        2056338,
-        1809859.25,
-        1514084.5,
-        25000
-    };
-
-    std::vector<double> ConcreteCompressionDamage {
-        0,
-        0,
-        0,
-        0,
-        0,
-        0.00281690000000001,
-        0.0183099,
-        0.0492958,
-        0.1,
-        0.1774648,
-        0.2760563,
-        0.3943662,
-        0.99
-    };
-*/
     std::vector<double> CompressionStrainTable
     {
         0,
@@ -555,27 +505,7 @@ void Generator::CreateCDP(std::ofstream &s)
         0.99
     };
 
-/*
-    // TENSILE PARAMETERS
-    std::vector<double> TensionStrainTable
-    {
-        0,
-        0.00444444508193041,
-        0.0128888907375982
-    };
 
-    std::vector<double> ConcreteTensionStiffening {
-        10000000,
-        5000000,
-        1000000
-    };
-
-    std::vector<double> ConcreteTensionDamage {
-        0,
-        0.5,
-        0.9
-    };
-*/
 
     // TENSILE PARAMETERS
     std::vector<double> &TensionStrainTable = CompressionStrainTable;
@@ -650,10 +580,12 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
 
     const double upperBlockHeight = indentationDepth*2;
 
-    int pt0 = gmsh::model::occ::addPoint(0, 0, 0);
-    int pt1 = gmsh::model::occ::addPoint(0, upperBlockHeight, 0);
-    int pt2 = gmsh::model::occ::addPoint(blockLength, upperBlockHeight, 0);
-    int pt3 = gmsh::model::occ::addPoint(blockLength, 0, 0);
+    double upperBlockY = blockHeight - upperBlockHeight;
+
+    int pt0 = gmsh::model::occ::addPoint(0, upperBlockY, 0);
+    int pt1 = gmsh::model::occ::addPoint(0, upperBlockY+upperBlockHeight, 0);
+    int pt2 = gmsh::model::occ::addPoint(blockLength, upperBlockY+upperBlockHeight, 0);
+    int pt3 = gmsh::model::occ::addPoint(blockLength, upperBlockY, 0);
 
     int line1 = gmsh::model::occ::addLine(pt0,pt1);
     int line2 = gmsh::model::occ::addLine(pt1,pt2);
@@ -708,10 +640,6 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
         for(int k=0;k<3;k++) elem->nds[k] = meshUpperBlock.nodes[mtags.at(nodeTagsInTris[i*3+k])];
     }
 
-    // gmsh::write(outputFileName + ".msh");
-    gmsh::finalize();
-
-
 
     for(icy::Element2D *elem : meshUpperBlock.elems) elem->Precompute();     // Dm matrix and volume
 
@@ -720,6 +648,77 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
 
     // UPPER BLOCK CREATED
 
+
+
+    // CREATE LOWER BLOCK
+    gmsh::clear();
+    pt0 = gmsh::model::occ::addPoint(0, 0, 0);
+    pt1 = gmsh::model::occ::addPoint(0, upperBlockY, 0);
+    pt2 = gmsh::model::occ::addPoint(blockLength, upperBlockY, 0);
+    pt3 = gmsh::model::occ::addPoint(blockLength, 0, 0);
+
+    line1 = gmsh::model::occ::addLine(pt0,pt1);
+    line2 = gmsh::model::occ::addLine(pt1,pt2);
+    line3 = gmsh::model::occ::addLine(pt2,pt3);
+    line4 = gmsh::model::occ::addLine(pt3,pt0);
+
+    loopTag = gmsh::model::occ::addCurveLoop({line1,line2,line3,line4});
+    gmsh::model::occ::addPlaneSurface({loopTag});
+
+    gmsh::model::occ::synchronize();
+    groupTag2 = gmsh::model::addPhysicalGroup(1, {line4});
+
+    gmsh::model::occ::synchronize();
+
+    gmsh::option::setNumber("Mesh.MeshSizeMax", elemSize*3);
+    gmsh::option::setNumber("Mesh.Algorithm", 5);
+    gmsh::model::mesh::generate(2);
+
+    // now load into MESH2D
+    nodeTags.clear();
+    nodeCoords.clear();
+    parametricCoords.clear();
+    mtags.clear(); // gmsh nodeTag -> sequential position in nodes[]
+
+    // GET NODES
+    gmsh::model::mesh::getNodesByElementType(2, nodeTags, nodeCoords, parametricCoords);
+    // set the size of the resulting nodes array
+    for(unsigned i=0;i<nodeTags.size();i++)
+    {
+        std::size_t tag = nodeTags[i];
+        if(mtags.count(tag)>0) continue; // throw std::runtime_error("GetFromGmsh() node duplication in deformable");
+
+        icy::Node2D *nd = meshLowerBlock.AddNode();
+        mtags[tag] = nd->globId;
+        nd->x0 = Eigen::Vector2d(nodeCoords[i*3+0], nodeCoords[i*3+1]);
+    }
+
+    // mark node's groups
+    nodeTags.clear();
+    nodeCoords.clear();
+    gmsh::model::mesh::getNodesForPhysicalGroup(1, groupTag2, nodeTags, nodeCoords);
+    for(unsigned j=0;j<nodeTags.size();j++) meshLowerBlock.nodes[mtags[nodeTags[j]]]->group=2;
+    spdlog::info("groupTag2 nodes {}",nodeTags.size());
+
+    // get elements
+    trisTags.clear();
+    nodeTagsInTris.clear();
+    gmsh::model::mesh::getElementsByType(2, trisTags, nodeTagsInTris);
+
+    for(std::size_t i=0;i<trisTags.size();i++)
+    {
+        icy::Element2D *elem = meshLowerBlock.AddElement();
+        elem->grainId = (int)i;
+        for(int k=0;k<3;k++) elem->nds[k] = meshLowerBlock.nodes[mtags.at(nodeTagsInTris[i*3+k])];
+    }
+
+    // gmsh::write(outputFileName + ".msh");
+    gmsh::finalize();
+
+    for(icy::Element2D *elem : meshLowerBlock.elems) elem->Precompute();     // Dm matrix and volume
+
+    spdlog::info("lower block: nodes {}; elems {}; czs {}", meshLowerBlock.nodes.size(), meshLowerBlock.elems.size(), meshLowerBlock.czs.size());
+    meshLowerBlock.EvaluateMinMax();
 
 
 
@@ -736,6 +735,11 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
     s << "import regionToolset\n";
     s << "import os\n";
 
+    // types of elements
+    s << "elemType_bulk = mesh.ElemType(elemCode=CPS3, elemLibrary=STANDARD, secondOrderAccuracy=OFF,"
+         "distortionControl=ON, lengthRatio=0.1, elemDeletion=ON)\n";
+
+    // part 1 (upper block)
     s << "p = mdb.models['Model-1'].Part(name='MyPart1', dimensionality=TWO_D_PLANAR, type=DEFORMABLE_BODY)\n";
 
     for(icy::Node2D *nd : meshUpperBlock.nodes)
@@ -746,9 +750,6 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
     for(icy::Element2D *e : meshUpperBlock.elems)
         s << "p.Element(nodes=(n["<<e->nds[0]->globId<<"],n["<<e->nds[1]->globId<<
              "],n["<<e->nds[2]->globId<<"]), elemShape=TRI3)\n";
-
-    s << "elemType_bulk = mesh.ElemType(elemCode=CPS3, elemLibrary=STANDARD, secondOrderAccuracy=OFF,"
-         "distortionControl=ON, lengthRatio=0.1, elemDeletion=ON)\n";
 
     // region1 - bulk elements
     s << "region1 = p.elements[0:" << meshUpperBlock.elems.size() << "]\n";
@@ -809,13 +810,70 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
     s << ", name='Surf-1')\n";
 
 
+    // part 2 (lower block)
+    s << "p3lb = mdb.models['Model-1'].Part(name='PartLowerBlock', dimensionality=TWO_D_PLANAR, type=DEFORMABLE_BODY)\n";
 
-    /*
-mdb.models['Model-1'].parts['MyPart1'].Surface(face2Elements=
-    mdb.models['Model-1'].parts['MyPart1'].elements.getSequenceFromMask(mask=(
-    '[#0:5 #1 #0:96 #8000000 #0:9 #4000000 #100000',
-    ' #0:9 #1000000 #0:6 #40001 #0:42 #2080 ]', ), ), name='Surf-1')
-*/
+    for(icy::Node2D *nd : meshLowerBlock.nodes)
+        s << "p3lb.Node(coordinates=(" << nd->x0[0] << "," << nd->x0[1] << ",0))\n";
+
+    s << "n2 = p3lb.nodes\n";
+
+    for(icy::Element2D *e : meshLowerBlock.elems)
+        s << "p3lb.Element(nodes=(n2[" << e->nds[0]->globId << "],n2["<<e->nds[1]->globId <<
+             "],n2["<<e->nds[2]->globId << "]), elemShape=TRI3)\n";
+
+    // region1 - bulk elements
+    s << "region11 = p3lb.elements[0:" << meshLowerBlock.elems.size() << "]\n";
+    s << "p3lb.setElementType(regions=(region11,), elemTypes=(elemType_bulk,))\n";
+    s << "p3lb.Set(elements=(region11,), name='Set-p2-elems')\n";
+
+
+    // region - pinned nodes of the lower block
+    s << "region4pinned = (";
+    for(icy::Node2D *nd : meshLowerBlock.nodes)
+        if(nd->group==2)
+            s << "p3lb.nodes["<<nd->globId << ":"<<nd->globId+1 << "],";
+    s << ")\n";
+    s << "p3lb.Set(nodes=region4pinned,name='Set10-pinned-lower')\n";
+
+
+    // top surface of the lower block
+    f1elems.clear();
+    f2elems.clear();
+    f3elems.clear();
+    for(icy::Element2D *elem : meshLowerBlock.elems)
+    {
+        if(elem->nds[0]->x0.y() == meshLowerBlock.Ymax &&
+                elem->nds[1]->x0.y() == meshLowerBlock.Ymax) f1elems.push_back(elem);
+        if(elem->nds[1]->x0.y() == meshLowerBlock.Ymax &&
+                elem->nds[2]->x0.y() == meshLowerBlock.Ymax) f2elems.push_back(elem);
+        if(elem->nds[2]->x0.y() == meshLowerBlock.Ymax &&
+                elem->nds[0]->x0.y() == meshLowerBlock.Ymax) f3elems.push_back(elem);
+    }
+    spdlog::info("lower block: f1elems {}; f2elems {}; f3elems {}", f1elems.size(), f2elems.size(), f3elems.size());
+
+    s << "p3lb.Surface(";
+    if(!f1elems.empty())
+    {
+        s << "face1Elements=(";
+        for(icy::Element2D *elem : f1elems) s << "p3lb.elements[" << elem->elemId << ":" << elem->elemId+1 << "],";
+        s << ")";
+    }
+    if(!f1elems.empty() && !f2elems.empty()) s << ",";
+    if(!f2elems.empty())
+    {
+        s << "face2Elements=(";
+        for(icy::Element2D *elem : f2elems) s << "p3lb.elements[" << elem->elemId << ":" << elem->elemId+1 << "],";
+        s << ")";
+    }
+    if(!(f2elems.empty() && f2elems.empty()) && !f3elems.empty()) s << ",";
+    if(!f3elems.empty())
+    {
+        s << "face3Elements=(";
+        for(icy::Element2D *elem : f3elems) s << "p3lb.elements[" << elem->elemId << ":" << elem->elemId+1 << "],";
+        s << ")";
+    }
+    s << ", name='Surf-2')\n";
 
 
     // create bulk material
@@ -825,15 +883,26 @@ mdb.models['Model-1'].parts['MyPart1'].Surface(face2Elements=
 
     CreateCDP(s);
 
+    // bulk material without CDP
+    s << "mat2 = mdb.models['Model-1'].Material(name='Material-2-bulk')\n";
+    s << "mat2.Density(table=((900.0, ), ))\n";
+    s << "mat2.Elastic(table=((" << YoungsModulus << ", 0.3), ))\n";
+
     // sections
-    s << "mdb.models['Model-1'].HomogeneousSolidSection(name='Section-1-bulk', "
+    s << "mdb.models['Model-1'].HomogeneousSolidSection(name='Section-1-CDP', "
          "material='Material-1-bulk', thickness=None)\n";
+    s << "mdb.models['Model-1'].HomogeneousSolidSection(name='Section-2-bulk', "
+         "material='Material-2-bulk', thickness=None)\n";
 
     // section assignments
     s << "region = p.sets['Set-1-elems']\n";
-    s << "p.SectionAssignment(region=region, sectionName='Section-1-bulk', offset=0.0, "
-         "offsetType=MIDDLE_SURFACE, offsetField='', "
-         "thicknessAssignment=FROM_SECTION)\n";
+    s << "p.SectionAssignment(region=region, sectionName='Section-1-CDP', offset=0.0, "
+         "offsetType=MIDDLE_SURFACE, offsetField='', thicknessAssignment=FROM_SECTION)\n";
+
+    // section - lower block
+    s << "p2set = p3lb.sets['Set-p2-elems']\n";
+    s << "p3lb.SectionAssignment(region=p2set, sectionName='Section-2-bulk', offset=0.0, "
+         "offsetType=MIDDLE_SURFACE, offsetField='', thicknessAssignment=FROM_SECTION)\n";
 
 
     // indenter
@@ -857,6 +926,7 @@ mdb.models['Model-1'].parts['MyPart1'].Surface(face2Elements=
 
     // add and rotate main part
     s << "inst1 = a1.Instance(name='MyPart1-1', part=p, dependent=ON)\n";
+    s << "inst3 = a1.Instance(name='PartLowerBlock-1', part=p3lb, dependent=ON)\n";
 
     const double &R = indenterRadius;
     const double &d = indentationDepth;
@@ -865,7 +935,7 @@ mdb.models['Model-1'].parts['MyPart1'].Surface(face2Elements=
     xOffset -= interactionRadius*1.3;
     spdlog::info("xOffset {}; indenterOffset {};",xOffset, indenterOffset);
     //horizontalOffset += -sqrt(pow(indenterRadius,2)-pow(indenterRadius-indenterDepth,2))-1e-7;
-    double yOffset = upperBlockHeight-d+R;
+    double yOffset = blockHeight-d+R; //upperBlockHeight-d+R;
 
     double zOffset = 0;
     s << "a1.Instance(name='Part-2-1', part=p2, dependent=ON)\n";
@@ -885,8 +955,8 @@ mdb.models['Model-1'].parts['MyPart1'].Surface(face2Elements=
     // gravity load
     s << "mdb.models['Model-1'].Gravity(name='Load-1', createStepName='Step-1',comp2=-10.0, distributionType=UNIFORM, field='')\n";
 
-    // BC - pinned nodes
-    s << "region = inst1.sets['Set3-pinned']\n";
+    // BC - pinned nodes (lower block)
+    s << "region = inst3.sets['Set10-pinned-lower']\n";
     s << "mdb.models['Model-1'].EncastreBC(name='BC-1', createStepName='Initial', region=region, localCsys=None)\n";
 
     // BC - moving indenter
@@ -937,6 +1007,15 @@ mdb.models['Model-1'].parts['MyPart1'].Surface(face2Elements=
         "a1.surfaces['Surf-1'], "
         "mechanicalConstraint=KINEMATIC, name='Int-2', secondary="
         "a1.sets['MyPart1-1.Set4-all'], sliding=FINITE)\n";
+
+    // tie constraint
+    /*
+mdb.models['Model-1'].Tie(adjust=ON, main=
+    mdb.models['Model-1'].rootAssembly.instances['MyPart1-1'].surfaces['Surf-1']
+    , name='Constraint-2', positionToleranceMethod=COMPUTED, secondary=
+    mdb.models['Model-1'].rootAssembly.instances['PartLowerBlock-1'].surfaces['Surf-2']
+    , thickness=ON, tieRotations=ON)
+*/
 
 
     // record indenter force

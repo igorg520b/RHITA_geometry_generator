@@ -4,7 +4,7 @@
 void icy::Node2D::Reset()
 {
     x0.setZero();
-    eqId = globId = -1;
+    globId = -1;
     pinned = false;
     incident_faces.clear();
     surface = false;
