@@ -5,6 +5,7 @@
 
 #include "gmsh.h"
 #include "generator.h"
+#include "generatoralt1.h"
 
 
 int main(int argc, char *argv[])
@@ -72,11 +73,16 @@ int main(int argc, char *argv[])
     if(parser.isSet(createCDPOption)) g.createCDP = true;
     if(parser.isSet(createVUELOption)) g.createVUEL = true;
     if(parser.isSet(createTwoLayersOption)) g.createTwoLayers = true;
-
+/*
     if(parser.isSet(createTwoLayersOption))
-        g.CreateTwoLayers(parser.value(loadFileOption).toStdString());
+        g.CreateTwoLayers2(parser.value(loadFileOption).toStdString());
     else if(parser.isSet(loadFileOption))
         g.LoadFromFile(parser.value(loadFileOption).toStdString());
     else
         g.Generate();
+*/
+    GeneratorAlt1 g1;
+    if(parser.isSet(outputFileOption)) g1.outputFileName = parser.value(outputFileOption).toStdString();
+    g1.Generate();
+
 }

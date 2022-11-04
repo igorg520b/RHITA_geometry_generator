@@ -508,11 +508,53 @@ void Generator::CreateCDP(std::ofstream &s)
 
 
     // TENSILE PARAMETERS
-    std::vector<double> &TensionStrainTable = CompressionStrainTable;
+    std::vector<double> TensionStrainTable {
+        0,
+        4.82465779124578E-05,
+        7.08943745454513E-05,
+        0.000104396105050508,
+        0.000142277237710436,
+        0.00018673117131313,
+        0.000236089839461282,
+        0.00029932310909091,
+        0.000389891913939393,
+        0.000512497121346801,
+        0.000666922797441073,
+        0.000877076075420875,
+        0.0017933333323771
+    };
 
-    std::vector<double> &ConcreteTensionStiffening = ConcreteCompressionHardening;
+    std::vector<double> ConcreteTensionStiffening {
+        5577464.8,
+        7425352,
+        7707042.4,
+        7943661.6,
+        8000000,
+        7977464.8,
+        7853520.8,
+        7605633.6,
+        7200000,
+        6580281.6,
+        5791549.6,
+        4845070.4,
+        80000
+    };
 
-    std::vector<double> &ConcreteTensionDamage = ConcreteCompressionDamage;
+    std::vector<double> ConcreteTensionDamage {
+        0,
+        0,
+        0,
+        0,
+        0,
+        0.00281690000000001,
+        0.0183099,
+        0.0492958,
+        0.1,
+        0.1774648,
+        0.2760563,
+        0.3943662,
+        0.99
+    };
 
 
     s << "mat1.ConcreteDamagedPlasticity(table=((40.0, 0.1, 1.16, 0.6667, 0.0), ))\n";
@@ -571,16 +613,89 @@ void Generator::CreateCDP(std::ofstream &s)
 
 
 
-void Generator::CreateTwoLayers(std::string MSHFileName)
+void Generator::CreateTwoLayers2(std::string MSHFileName)
 {
+    // LOAD LOWER BLOCK FROM FILE
+    spdlog::info("loading from file {}",MSHFileName);
+
     gmsh::initialize();
+    gmsh::open("msh\\" + MSHFileName);
+
+    std::vector<std::size_t> nodeTags;
+    std::vector<double> nodeCoords, parametricCoords;
+    std::unordered_map<std::size_t, std::size_t> mtags; // gmsh nodeTag -> sequential position in nodes[]
+
+    // GET NODES
+    gmsh::model::mesh::getNodesByElementType(2, nodeTags, nodeCoords, parametricCoords);
+
+    // set the size of the resulting nodes array
+    for(unsigned i=0;i<nodeTags.size();i++)
+    {
+        std::size_t tag = nodeTags[i];
+        if(mtags.count(tag)>0) continue; // throw std::runtime_error("GetFromGmsh() node duplication in deformable");
+        icy::Node2D *nd = meshLowerBlock.AddNode();
+        mtags[tag] = nd->globId;
+        nd->x0 = Eigen::Vector2d(nodeCoords[i*3+0], nodeCoords[i*3+1]);
+    }
+
+    // GET ELEMENTS - per grain (entity)
+    std::vector<std::pair<int,int>> dimTagsGrains;
+    gmsh::model::getEntities(dimTagsGrains,2);
+
+    for(std::size_t j=0;j<dimTagsGrains.size();j++)
+    {
+        std::vector<std::size_t> trisTags, nodeTagsInTris;
+        int entityTag = dimTagsGrains[j].second;
+        gmsh::model::mesh::getElementsByType(2, trisTags, nodeTagsInTris,entityTag);
+
+        for(std::size_t i=0;i<trisTags.size();i++)
+        {
+            icy::Element2D *elem = meshLowerBlock.AddElement();
+            elem->grainId = (int)j;
+            for(int k=0;k<3;k++) elem->nds[k] = meshLowerBlock.nodes[mtags.at(nodeTagsInTris[i*3+k])];
+        }
+    }
+
+
+    if(insertCZs)
+    {
+        icy::CZInsertionTool2D czit;
+        czit.InsertCZs(meshLowerBlock);
+    }
+
+    for(icy::Element2D *elem : meshLowerBlock.elems) elem->Precompute();     // Dm matrix and volume
+
+    // dimensions of the block
+    auto it_x = std::max_element(meshLowerBlock.nodes.begin(), meshLowerBlock.nodes.end(),
+                               [](icy::Node2D *nd1, icy::Node2D *nd2){return nd1->x0.x() < nd2->x0.x();});
+    double lowerBlockLength = (*it_x)->x0.x();
+
+    auto it_y = std::max_element(meshLowerBlock.nodes.begin(),meshLowerBlock.nodes.end(),
+                               [](icy::Node2D *nd1, icy::Node2D *nd2){return nd1->x0.y() < nd2->x0.y();});
+    double lowerBlockHeight = (*it_y)->x0.y();
+
+    for(icy::Node2D *nd : meshLowerBlock.nodes) if(nd->x0.y() == 0) nd->group = 2;
+    meshLowerBlock.EvaluateMinMax();
+
+    spdlog::info("lowerBlockLength {}; lowerBlockHeight {}", lowerBlockLength, lowerBlockHeight);
+    spdlog::info("l-block: nds {}; elems {}; czs {}; grains {}", mesh2d.nodes.size(), mesh2d.elems.size(), mesh2d.czs.size(), dimTagsGrains.size());
+    spdlog::info("Load lower block from file - done");
+
+
+
+
+
+    // UPPER BLOCK
+    gmsh::clear();
 
     gmsh::option::setNumber("General.Terminal", 1);
     gmsh::model::add("indenter1");
 
     const double upperBlockHeight = indentationDepth*2;
 
-    double upperBlockY = blockHeight - upperBlockHeight;
+    blockLength = lowerBlockLength;
+    blockHeight = lowerBlockHeight + upperBlockHeight;
+    double upperBlockY = lowerBlockHeight;
 
     int pt0 = gmsh::model::occ::addPoint(0, upperBlockY, 0);
     int pt1 = gmsh::model::occ::addPoint(0, upperBlockY+upperBlockHeight, 0);
@@ -605,9 +720,10 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
     gmsh::model::mesh::generate(2);
 
     // now load into MESH2D
-    std::vector<std::size_t> nodeTags;
-    std::vector<double> nodeCoords, parametricCoords;
-    std::unordered_map<std::size_t, std::size_t> mtags; // gmsh nodeTag -> sequential position in nodes[]
+    nodeTags.clear();
+    nodeCoords.clear();
+    parametricCoords.clear();
+    mtags.clear();
 
     // GET NODES
     gmsh::model::mesh::getNodesByElementType(2, nodeTags, nodeCoords, parametricCoords);
@@ -643,82 +759,15 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
 
     for(icy::Element2D *elem : meshUpperBlock.elems) elem->Precompute();     // Dm matrix and volume
 
-    spdlog::info("upper block: nodes {}; elems {}; czs {}", meshUpperBlock.nodes.size(), meshUpperBlock.elems.size(), meshUpperBlock.czs.size());
     meshUpperBlock.EvaluateMinMax();
+    gmsh::finalize();
+    spdlog::info("upper block: nodes {}; elems {}; czs {}", meshUpperBlock.nodes.size(), meshUpperBlock.elems.size(), meshUpperBlock.czs.size());
 
     // UPPER BLOCK CREATED
 
 
 
-    // CREATE LOWER BLOCK
-    gmsh::clear();
-    pt0 = gmsh::model::occ::addPoint(0, 0, 0);
-    pt1 = gmsh::model::occ::addPoint(0, upperBlockY, 0);
-    pt2 = gmsh::model::occ::addPoint(blockLength, upperBlockY, 0);
-    pt3 = gmsh::model::occ::addPoint(blockLength, 0, 0);
 
-    line1 = gmsh::model::occ::addLine(pt0,pt1);
-    line2 = gmsh::model::occ::addLine(pt1,pt2);
-    line3 = gmsh::model::occ::addLine(pt2,pt3);
-    line4 = gmsh::model::occ::addLine(pt3,pt0);
-
-    loopTag = gmsh::model::occ::addCurveLoop({line1,line2,line3,line4});
-    gmsh::model::occ::addPlaneSurface({loopTag});
-
-    gmsh::model::occ::synchronize();
-    groupTag2 = gmsh::model::addPhysicalGroup(1, {line4});
-
-    gmsh::model::occ::synchronize();
-
-    gmsh::option::setNumber("Mesh.MeshSizeMax", elemSize*3);
-    gmsh::option::setNumber("Mesh.Algorithm", 5);
-    gmsh::model::mesh::generate(2);
-
-    // now load into MESH2D
-    nodeTags.clear();
-    nodeCoords.clear();
-    parametricCoords.clear();
-    mtags.clear(); // gmsh nodeTag -> sequential position in nodes[]
-
-    // GET NODES
-    gmsh::model::mesh::getNodesByElementType(2, nodeTags, nodeCoords, parametricCoords);
-    // set the size of the resulting nodes array
-    for(unsigned i=0;i<nodeTags.size();i++)
-    {
-        std::size_t tag = nodeTags[i];
-        if(mtags.count(tag)>0) continue; // throw std::runtime_error("GetFromGmsh() node duplication in deformable");
-
-        icy::Node2D *nd = meshLowerBlock.AddNode();
-        mtags[tag] = nd->globId;
-        nd->x0 = Eigen::Vector2d(nodeCoords[i*3+0], nodeCoords[i*3+1]);
-    }
-
-    // mark node's groups
-    nodeTags.clear();
-    nodeCoords.clear();
-    gmsh::model::mesh::getNodesForPhysicalGroup(1, groupTag2, nodeTags, nodeCoords);
-    for(unsigned j=0;j<nodeTags.size();j++) meshLowerBlock.nodes[mtags[nodeTags[j]]]->group=2;
-    spdlog::info("groupTag2 nodes {}",nodeTags.size());
-
-    // get elements
-    trisTags.clear();
-    nodeTagsInTris.clear();
-    gmsh::model::mesh::getElementsByType(2, trisTags, nodeTagsInTris);
-
-    for(std::size_t i=0;i<trisTags.size();i++)
-    {
-        icy::Element2D *elem = meshLowerBlock.AddElement();
-        elem->grainId = (int)i;
-        for(int k=0;k<3;k++) elem->nds[k] = meshLowerBlock.nodes[mtags.at(nodeTagsInTris[i*3+k])];
-    }
-
-    // gmsh::write(outputFileName + ".msh");
-    gmsh::finalize();
-
-    for(icy::Element2D *elem : meshLowerBlock.elems) elem->Precompute();     // Dm matrix and volume
-
-    spdlog::info("lower block: nodes {}; elems {}; czs {}", meshLowerBlock.nodes.size(), meshLowerBlock.elems.size(), meshLowerBlock.czs.size());
-    meshLowerBlock.EvaluateMinMax();
 
 
 
@@ -810,6 +859,8 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
     s << ", name='Surf-1')\n";
 
 
+
+
     // part 2 (lower block)
     s << "p3lb = mdb.models['Model-1'].Part(name='PartLowerBlock', dimensionality=TWO_D_PLANAR, type=DEFORMABLE_BODY)\n";
 
@@ -822,11 +873,30 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
         s << "p3lb.Element(nodes=(n2[" << e->nds[0]->globId << "],n2["<<e->nds[1]->globId <<
              "],n2["<<e->nds[2]->globId << "]), elemShape=TRI3)\n";
 
+    for(icy::CohesiveZone2D *c : meshLowerBlock.czs)
+        s << "p3lb.Element(nodes=(n2["<<c->nds[0]->globId<<
+             "], n2["<<c->nds[1]->globId<<
+             "], n2["<<c->nds[3]->globId<<
+             "], n2["<<c->nds[2]->globId<<
+             "]), elemShape=QUAD4)\n";
+
+
+    bool hasCZs = meshLowerBlock.czs.size()>0;
+
+    if(hasCZs)
+        s << "elemType_coh = mesh.ElemType(elemCode=COH2D4, elemLibrary=STANDARD,elemDeletion=ON)\n";
+
     // region1 - bulk elements
     s << "region11 = p3lb.elements[0:" << meshLowerBlock.elems.size() << "]\n";
     s << "p3lb.setElementType(regions=(region11,), elemTypes=(elemType_bulk,))\n";
     s << "p3lb.Set(elements=(region11,), name='Set-p2-elems')\n";
 
+    if(hasCZs)
+    {
+        s << "region2cz = p3lb.elements[" << meshLowerBlock.elems.size() << ":" << meshLowerBlock.elems.size() + meshLowerBlock.czs.size() << "]\n";
+        s << "p3lb.setElementType(regions=(region2cz,), elemTypes=(elemType_coh,))\n";
+        s << "p3lb.Set(elements=(region2cz,), name='Set-2-czs')\n";
+    }
 
     // region - pinned nodes of the lower block
     s << "region4pinned = (";
@@ -876,12 +946,29 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
     s << ", name='Surf-2')\n";
 
 
+
+
+
     // create bulk material
     s << "mat1 = mdb.models['Model-1'].Material(name='Material-1-bulk')\n";
     s << "mat1.Density(table=((900.0, ), ))\n";
     s << "mat1.Elastic(table=((" << YoungsModulus << ", 0.3), ))\n";
 
     CreateCDP(s);
+
+    // cz material
+    if(hasCZs)
+    {
+        s << "mat2czs = mdb.models['Model-1'].Material(name='Material-2-czs')\n";
+        s << "mat2czs.Density(table=((1.0, ), ))\n";
+        s << "mat2czs.MaxsDamageInitiation(table=((" << czsStrength << "," << czsStrength*2 << "," << czsStrength*2 << "), ))\n";
+        s << "mat2czs.maxsDamageInitiation.DamageEvolution(type=ENERGY, table=((" << czEnergy << ", ), ))\n";
+        s << "mat2czs.Elastic(type=TRACTION, table=((" << czElasticity << "," << czElasticity << "," << czElasticity << "), ))\n";
+
+        s << "mdb.models['Model-1'].CohesiveSection(name='Section-2-czs', "
+             "material='Material-2-czs', response=TRACTION_SEPARATION, "
+             "outOfPlaneThickness=None)\n";
+    }
 
     // bulk material without CDP
     s << "mat2 = mdb.models['Model-1'].Material(name='Material-2-bulk')\n";
@@ -904,6 +991,13 @@ void Generator::CreateTwoLayers(std::string MSHFileName)
     s << "p3lb.SectionAssignment(region=p2set, sectionName='Section-2-bulk', offset=0.0, "
          "offsetType=MIDDLE_SURFACE, offsetField='', thicknessAssignment=FROM_SECTION)\n";
 
+    if(hasCZs)
+    {
+        s << "region112 = p3lb.sets['Set-2-czs']\n";
+        s << "p3lb.SectionAssignment(region=region112, sectionName='Section-2-czs', offset=0.0, "
+             "offsetType=MIDDLE_SURFACE, offsetField='', "
+             "thicknessAssignment=FROM_SECTION)\n";
+    }
 
     // indenter
     s << "s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=2.0)\n";

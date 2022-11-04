@@ -33,9 +33,9 @@ public:
     double blockLength = 2.5;
     constexpr static int numberOfCores = 12;
     constexpr static double YoungsModulus = 9e9;
-    constexpr static double czsStrength = 4e5;
-    constexpr static double czElasticity = 5e9;
-    constexpr static double czEnergy = 50;
+    constexpr static double czsStrength = 6e6;
+    constexpr static double czElasticity = 1e11;
+    constexpr static double czEnergy = 500;
     constexpr static double indentationRate = 0.2;
 
     icy::Mesh2D mesh2d, meshUpperBlock, meshLowerBlock;
@@ -43,6 +43,7 @@ public:
     void Generate();
     void LoadFromFile(std::string MSHFileName);
     void CreateTwoLayers(std::string MSHFileName);  // load the bottom part from file and generate the upper part
+    void CreateTwoLayers2(std::string MSHFileName);
 
 
     void CreatePyWithIndenter2D();
