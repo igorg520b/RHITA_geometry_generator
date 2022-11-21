@@ -123,12 +123,6 @@ void icy::Mesh::LoadMSH(const std::string &fileName, bool insertCZs)
     std::cout << "number of lines: " << lineTags.size() << std::endl;
 
 
-    // center mesh
-    for(Node *nd : nodes)
-    {
-        nd->pinned = nd->x0.z() < 1e-7;
-        if(nd->pinned) nd->group = 2;
-    }
 
 
     CZInsertionTool czit;
@@ -139,6 +133,7 @@ void icy::Mesh::LoadMSH(const std::string &fileName, bool insertCZs)
 
     gmsh::clear();
     qDebug() << "LoadMSH done";
+
 }
 
 

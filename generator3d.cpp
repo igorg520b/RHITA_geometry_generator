@@ -49,7 +49,7 @@ void Generator3D::CreatePy()
     s << "import regionToolset\n";
     s << "import os\n";
 
-    s << "p = mdb.models['Model-1'].Part(name='MyPart1', dimensionality=TWO_D_PLANAR, type=DEFORMABLE_BODY)\n";
+    s << "p = mdb.models['Model-1'].Part(name='MyPart1', dimensionality=THREE_D, type=DEFORMABLE_BODY)\n";
 
     for(icy::Node *nd : mesh.nodes)
         s << "p.Node(coordinates=(" << nd->x0[0] << "," << nd->x0[1] << "," << nd->x0[2] << "))\n";
@@ -57,10 +57,10 @@ void Generator3D::CreatePy()
     s << "n = p.nodes\n";
 
     for(icy::Element *e : mesh.elems)
-        s << "p.Element(nodes=(n["<<e->nds[0]->globId<<"],n[" <<
-             e->nds[1]->globId <<
-             "],n[" << e->nds[3]->globId <<
-             "],n[" << e->nds[2]->globId <<
+        s << "p.Element(nodes=(n["<<e->nds[0]->globId<<"],n["<<
+             e->nds[1]->globId<<
+             "],n["<<e->nds[3]->globId<<
+             "],n["<<e->nds[2]->globId<<
              "]), elemShape=TET4)\n";
 
     for(icy::CohesiveZone *c : mesh.czs)
@@ -176,7 +176,7 @@ void Generator3D::CreatePy()
     spdlog::info("xOffset {}",xOffset);
     double yOffset = blockHeight-d+R;
 
-    double zOffset = 0;
+    double zOffset = blockWidth/2;
     s << "a1.Instance(name='Part-2-1', part=p2, dependent=ON)\n";
     // rotate indenter
     s << "a1.rotate(instanceList=('Part-2-1', ), axisPoint=(0.0, 0.0, 0.0)," << "axisDirection=(0.0, 0.0, 1.0), angle=45.0)\n";
