@@ -33,7 +33,7 @@ public:
     constexpr static int numberOfCores = 12;
     constexpr static double YoungsModulus = 9e9;
     constexpr static double czsStrength = 6e6;
-    constexpr static double czElasticity = 1e11;
+    constexpr static double czElasticity = 1e12;
     constexpr static double czEnergy = 100;
     constexpr static double indentationRate = 0.2;
 

@@ -21,6 +21,7 @@ public:
 
     double blockHeight = 1.;
     double blockLength = 2.5;
+    double blockWidth = 1.5;
     constexpr static int numberOfCores = 12;
     constexpr static double YoungsModulus = 9e9;
     constexpr static double czsStrength = 6e6;

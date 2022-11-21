@@ -235,7 +235,8 @@ void Generator::CreatePyWithIndenter2D()
     bool hasCZs = mesh2d.czs.size()>0;
 
     if(hasCZs)
-        s << "elemType_coh = mesh.ElemType(elemCode=COH2D4, elemLibrary=STANDARD,elemDeletion=ON)\n";
+        s << "elemType_coh = mesh.ElemType(elemCode=COH2D4, elemLibrary=STANDARD,"
+             "distortionControl=ON, lengthRatio=0.1, elemDeletion=ON)\n";
 
 
     // region1 - bulk elements

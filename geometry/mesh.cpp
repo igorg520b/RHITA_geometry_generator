@@ -15,6 +15,7 @@
 #include <map>
 
 #include <Eigen/Core>
+#include "spdlog/spdlog.h"
 
 
 icy::SimplePool<icy::Node> icy::Mesh::NodeFactory(reserveConst);
@@ -69,10 +70,10 @@ icy::CohesiveZone* icy::Mesh::AddCZ()
 
 void icy::Mesh::LoadMSH(const std::string &fileName, bool insertCZs)
 {
-    qDebug() << "LoadMSH";
+    spdlog::info("icy::Mesh::LoadMSH {}",fileName);
 
     Reset();
-    gmsh::clear();
+    gmsh::initialize();
     gmsh::open(fileName);
 
     std::vector<std::size_t> nodeTags;
@@ -126,6 +127,7 @@ void icy::Mesh::LoadMSH(const std::string &fileName, bool insertCZs)
     for(Node *nd : nodes)
     {
         nd->pinned = nd->x0.z() < 1e-7;
+        if(nd->pinned) nd->group = 2;
     }
 
 
