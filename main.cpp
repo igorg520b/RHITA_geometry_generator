@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
         // 3D geometry
         Generator3D g3d;
         if(parser.isSet(outputFileOption)) g3d.outputFileName = parser.value(outputFileOption).toStdString();
+        if(parser.isSet(insertCZSOption)) g3d.insertCZs = true;
         g3d.LoadFromFile(parser.value(loadFileOption).toStdString());
     }
     else

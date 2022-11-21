@@ -29,6 +29,8 @@ public:
     constexpr static double czEnergy = 30;
     constexpr static double indentationRate = 0.2;
 
+    bool insertCZs = false;
+
     icy::Mesh mesh;
 
     void LoadFromFile(std::string MSHFileName);

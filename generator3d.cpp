@@ -14,6 +14,16 @@ void Generator3D::LoadFromFile(std::string MSHFileName)
 {
     mesh.LoadMSH("msh3d\\" +MSHFileName, true);
 
+    if(insertCZs)
+    {
+        icy::CZInsertionTool czit;
+        if(insertCZs) czit.InsertCZs(mesh);
+    }
+
+    for(icy::Element *elem : mesh.elems) elem->Precompute();     // Dm matrix and volume
+    //MarkIncidentFaces();
+
+
     // dimensions of the block
     auto it_x = std::max_element(mesh.nodes.begin(),mesh.nodes.end(),
                                [](icy::Node *nd1, icy::Node *nd2){return nd1->x0.x() < nd2->x0.x();});

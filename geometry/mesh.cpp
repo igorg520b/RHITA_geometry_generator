@@ -125,11 +125,7 @@ void icy::Mesh::LoadMSH(const std::string &fileName, bool insertCZs)
 
 
 
-    CZInsertionTool czit;
-    if(insertCZs) czit.InsertCZs(*this);
 
-    for(icy::Element *elem : elems) elem->Precompute();     // Dm matrix and volume
-    MarkIncidentFaces();
 
     gmsh::clear();
     qDebug() << "LoadMSH done";
