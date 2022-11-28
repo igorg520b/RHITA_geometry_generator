@@ -27,14 +27,16 @@ int main(int argc, char *argv[])
     QCommandLineOption loadFileOption(QStringList() << "m" << "meshfile",
                                          QCoreApplication::translate("main", "Load from MSH file"), "FileName");
 
-    QCommandLineOption insertCZSOption(QStringList() << "z" << "czs", QCoreApplication::translate("main", "InsertCZS"));
+    QCommandLineOption insertCZSOption(QStringList() << "czs", QCoreApplication::translate("main", "InsertCZS"));
     QCommandLineOption createCDPOption(QStringList() << "cdp", QCoreApplication::translate("main", "Create CDP material"));
+    QCommandLineOption createSCollisionsOption(QStringList() << "sCollisions", QCoreApplication::translate("main", "Create self collisions"));
     QCommandLineOption use3DGeneratorOption(QStringList() << "3d", QCoreApplication::translate("main", "Use 3D Generator"));
 
     parser.addOption(outputFileOption);
     parser.addOption(insertCZSOption);
     parser.addOption(loadFileOption);
     parser.addOption(createCDPOption);
+    parser.addOption(createSCollisionsOption);
     parser.addOption(use3DGeneratorOption);
 
     // -o x500 -m x500.msh --cdp --czs --3d
@@ -57,6 +59,7 @@ int main(int argc, char *argv[])
         if(parser.isSet(outputFileOption)) g.outputFileName = parser.value(outputFileOption).toStdString();
         if(parser.isSet(insertCZSOption)) g.insertCZs = true;
         if(parser.isSet(createCDPOption)) g.createCDP = true;
+        if(parser.isSet(createSCollisionsOption)) g.createSelfCollisions = true;
         if(parser.isSet(loadFileOption))
             g.LoadFromFile(parser.value(loadFileOption).toStdString());
         else

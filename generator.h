@@ -19,9 +19,9 @@ public:
     double interactionRadius = 0.01; // for exponential interaction property
 
     bool insertCZs = false;
-    bool plasticity = false;
+    // bool plasticity = false;
     bool createCDP = false;
-    bool createVUEL = false;    // not used
+    bool createSelfCollisions = false;
 
     double timeToRun = 10;
     int nFrames = 2000;
@@ -41,9 +41,6 @@ public:
 
     void Generate();
     void LoadFromFile(std::string MSHFileName);
-//    void CreateTwoLayers(std::string MSHFileName);  // load the bottom part from file and generate the upper part
-//    void CreateTwoLayers2(std::string MSHFileName);
-
 
     void CreatePyWithIndenter2D();
     void CreateCDP(std::ofstream &s);

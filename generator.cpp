@@ -197,8 +197,6 @@ void Generator::LoadFromFile(std::string MSHFileName)
 
 void Generator::CreatePyWithIndenter2D()
 {
-    spdlog::info("createVUEL {}", createVUEL);
-
     // SAVE as .py
     std::ofstream s;
     s.open(outputFileName+".py", std::ios_base::trunc|std::ios_base::out);
@@ -278,11 +276,9 @@ void Generator::CreatePyWithIndenter2D()
 
     CreateCDP(s);
 
-    if(plasticity)
-    {
-        s << "mat1.Plastic(scaleStress=None,table="
-                "((50000.0, 0.0), (100000.0, 0.01), (1000000.0, 0.05), (10000000.0,0.1)))\n";
-    }
+    // plastic material
+//        s << "mat1.Plastic(scaleStress=None,table="
+//                "((50000.0, 0.0), (100000.0, 0.01), (1000000.0, 0.05), (10000000.0,0.1)))\n";
 
     // cz material
     if(hasCZs)
@@ -390,7 +386,7 @@ void Generator::CreatePyWithIndenter2D()
 
     // rigid body constraint
 
-    // create interaction property
+    // create interaction property - hard collisions
     s << "mdb.models['Model-1'].ContactProperty('IntProp-2czs')\n";
 
     s << "mdb.models['Model-1'].interactionProperties['IntProp-2czs'].TangentialBehavior("
@@ -399,12 +395,7 @@ void Generator::CreatePyWithIndenter2D()
          "pressureOverclosure=HARD, allowSeparation=ON, "
          "constraintEnforcementMethod=DEFAULT)\n";
 
-//    s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
-//        "dependencies=0, directionality=ISOTROPIC, elasticSlipStiffness=None, "
-//        "formulation=PENALTY, fraction=0.005, maximumElasticSlip=FRACTION, "
-//        "pressureDependency=OFF, shearStressLimit=None, slipRateDependency=OFF, "
-//        "table=((0.1, ), ), temperatureDependency=OFF)\n";
-
+    // interaction property - penalty-based
     s << "mdb.models['Model-1'].ContactProperty('IntProp-1')\n";
       s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
         "formulation=PENALTY, directionality=ISOTROPIC, slipRateDependency=OFF, "
@@ -418,12 +409,14 @@ void Generator::CreatePyWithIndenter2D()
 
 
     // create interaction itself
-//    s << "mdb.models['Model-1'].ContactExp(name='Int-1', createStepName='Step-1')\n";
-//    s << "mdb.models['Model-1'].interactions['Int-1'].includedPairs.setValuesInStep("
-//         "stepName='Step-1', useAllstar=ON)\n";
-//    s << "mdb.models['Model-1'].interactions['Int-1'].contactPropertyAssignments.appendInStep("
-//         "stepName='Step-1', assignments=((GLOBAL, SELF, 'IntProp-2czs'), ))\n";
-
+       if(createSelfCollisions)
+       {
+           s << "mdb.models['Model-1'].ContactExp(name='Int-1', createStepName='Step-1')\n";
+           s << "mdb.models['Model-1'].interactions['Int-1'].includedPairs.setValuesInStep("
+                "stepName='Step-1', useAllstar=ON)\n";
+           s << "mdb.models['Model-1'].interactions['Int-1'].contactPropertyAssignments.appendInStep("
+                "stepName='Step-1', assignments=((GLOBAL, SELF, 'IntProp-2czs'), ))\n";
+       }
 
     // additional contact between surface and nodes
     s << "mdb.models['Model-1'].SurfaceToSurfaceContactExp(clearanceRegion=None,"
