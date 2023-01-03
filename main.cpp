@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
     parser.addOption(use3DGeneratorOption);
 
     // -o x500 -m x500.msh --cdp --czs --3d
+    // -o t300 -m t300.msh --cdp --czs --sCollisions
 
     // Process the actual command line arguments given by the user
     parser.process(a);
