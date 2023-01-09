@@ -31,6 +31,7 @@ int main(int argc, char *argv[])
     QCommandLineOption createCDPOption(QStringList() << "cdp", QCoreApplication::translate("main", "Create CDP material"));
     QCommandLineOption createSCollisionsOption(QStringList() << "sCollisions", QCoreApplication::translate("main", "Create self collisions"));
     QCommandLineOption use3DGeneratorOption(QStringList() << "3d", QCoreApplication::translate("main", "Use 3D Generator"));
+    QCommandLineOption attachTopOption(QStringList() << "attachTop", QCoreApplication::translate("main", "Attach top side of the block"));
 
     parser.addOption(outputFileOption);
     parser.addOption(insertCZSOption);
@@ -38,6 +39,7 @@ int main(int argc, char *argv[])
     parser.addOption(createCDPOption);
     parser.addOption(createSCollisionsOption);
     parser.addOption(use3DGeneratorOption);
+    parser.addOption(attachTopOption);
 
     // -o x500 -m x500.msh --cdp --czs --3d
     // -o t300 -m t300.msh --cdp --czs --sCollisions
@@ -61,6 +63,7 @@ int main(int argc, char *argv[])
         if(parser.isSet(insertCZSOption)) g.insertCZs = true;
         if(parser.isSet(createCDPOption)) g.createCDP = true;
         if(parser.isSet(createSCollisionsOption)) g.createSelfCollisions = true;
+        if(parser.isSet(attachTopOption)) g.attachTop = true;
         if(parser.isSet(loadFileOption))
             g.LoadFromFile(parser.value(loadFileOption).toStdString());
         else

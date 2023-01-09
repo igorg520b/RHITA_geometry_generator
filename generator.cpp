@@ -173,17 +173,32 @@ void Generator::LoadFromFile(std::string MSHFileName)
                                [](icy::Node2D *nd1, icy::Node2D *nd2){return nd1->x0.x() < nd2->x0.x();});
     blockLength = (*it_x)->x0.x();
 
+    auto it_x_min = std::min_element(mesh2d.nodes.begin(),mesh2d.nodes.end(),
+                               [](icy::Node2D *nd1, icy::Node2D *nd2){return nd1->x0.x() < nd2->x0.x();});
+    double blockXMin = (*it_x_min)->x0.x();
+
+
     auto it_y = std::max_element(mesh2d.nodes.begin(),mesh2d.nodes.end(),
                                [](icy::Node2D *nd1, icy::Node2D *nd2){return nd1->x0.y() < nd2->x0.y();});
     blockHeight = (*it_y)->x0.y();
 
-    for(icy::Node2D *nd : mesh2d.nodes)
+
+
+
+    if(!attachTop)
     {
-//        if(nd->x0.y()==0 || nd->x0.x()==0 || abs(nd->x0.x()-blockLength)<1e-7) nd->group = 2;
-        if(nd->x0.y()==0) nd->group = 2;
+        for(icy::Node2D *nd : mesh2d.nodes)
+            if(nd->x0.y()==0) nd->group = 2;
+    }
+    else
+    {
+        spdlog::info("attaching top");
+        // attach top side
+        for(icy::Node2D *nd : mesh2d.nodes)
+            if(nd->x0.y()>=(blockHeight-1e-7)) nd->group = 2;
     }
 
-    spdlog::info("blockLength {}; blockHeight {}", blockLength, blockHeight);
+    spdlog::info("blockLength {}; blockHeight {}", blockLength-blockXMin, blockHeight);
     spdlog::info("nds {}; elems {}; czs {}; grains {}", mesh2d.nodes.size(), mesh2d.elems.size(), mesh2d.czs.size(), dimTagsGrains.size());
 
 //    indenterOffset = 0.05;
@@ -286,7 +301,7 @@ void Generator::CreatePyWithIndenter2D()
         s << "mat2 = mdb.models['Model-1'].Material(name='Material-2-czs')\n";
         s << "mat2.Density(table=((1.0, ), ))\n";
         s << "mat2.MaxsDamageInitiation(table=((" << czsStrength << "," << czsStrength*2 << "," << czsStrength*2 << "), ))\n";
-        s << "mat2.maxsDamageInitiation.DamageEvolution(type=ENERGY, table=((" << czEnergy << ", ), ))\n";
+        s << "mat2.maxsDamageInitiation.DamageEvolution(type=ENERGY, softening=EXPONENTIAL, table=((" << czEnergy << ", ), ))\n";
         s << "mat2.Elastic(type=TRACTION, table=((" << czElasticity << "," << czElasticity << "," << czElasticity << "), ))\n";
 
         s << "mdb.models['Model-1'].CohesiveSection(name='Section-2-czs', "
@@ -357,7 +372,7 @@ void Generator::CreatePyWithIndenter2D()
     s << "mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(numIntervals=" << nFrames <<
          ",variables=('S', 'SVAVG', 'PE', 'PEVAVG', 'PEEQ', 'PEEQVAVG', 'LE', "
              "'U', 'V', 'A', 'RF', 'CSTRESS', 'DAMAGEC', 'DAMAGET', 'DAMAGESHR', 'EVF', "
-             "'STATUS'))\n";
+             "'STATUS', 'SDEG'))\n";
 
     // gravity load
     s << "mdb.models['Model-1'].Gravity(name='Load-1', createStepName='Step-1',comp2=-10.0, distributionType=UNIFORM, field='')\n";
