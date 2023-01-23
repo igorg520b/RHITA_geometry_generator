@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <unordered_set>
 
 
 void Generator::Generate()
@@ -208,6 +209,119 @@ void Generator::LoadFromFile(std::string MSHFileName)
     spdlog::info("LoadFromFile done");
 }
 
+
+void Generator::LoadFromFileWithCrop(std::string MSHFileName)
+{
+    spdlog::info("loading from file {}",MSHFileName);
+
+    gmsh::initialize();
+    gmsh::open("msh\\" + MSHFileName);
+
+    std::vector<std::size_t> nodeTags;
+    std::vector<double> nodeCoords, parametricCoords;
+    std::unordered_map<std::size_t, icy::Node2D*> mtags; // gmsh nodeTag -> node object
+
+
+    // GET NODES
+    gmsh::model::mesh::getNodesByElementType(2, nodeTags, nodeCoords, parametricCoords);
+
+    // set the size of the resulting nodes array
+    for(unsigned i=0;i<nodeTags.size();i++)
+    {
+        std::size_t tag = nodeTags[i];
+        if(mtags.count(tag)>0) continue; // throw std::runtime_error("GetFromGmsh() node duplication in deformable");
+        icy::Node2D *nd = mesh2d.AddNode();
+        mtags[tag] = nd;
+        nd->x0 = Eigen::Vector2d(nodeCoords[i*3+0], nodeCoords[i*3+1]);
+    }
+
+
+    // GET ELEMENTS - per grain (entity)
+    std::vector<std::pair<int,int>> dimTagsGrains;
+    gmsh::model::getEntities(dimTagsGrains,2);
+
+    std::unordered_set<icy::Node2D*> used_nodes;
+
+    for(std::size_t j=0;j<dimTagsGrains.size();j++)
+    {
+        std::vector<std::size_t> trisTags, nodeTagsInTris;
+        int entityTag = dimTagsGrains[j].second;
+        gmsh::model::mesh::getElementsByType(2, trisTags, nodeTagsInTris,entityTag);
+
+        for(std::size_t i=0;i<trisTags.size();i++)
+        {
+            icy::Node2D* nds[3];
+            bool crop = false;
+            for(int k=0;k<3;k++)
+            {
+                nds[k] = mtags.at(nodeTagsInTris[i*3+k]);
+                Eigen::Vector2d &x = nds[k]->x0;
+                if(x.y() < 0.151925 && x.x() > 5.65) crop = true;
+            }
+            if(crop) continue;
+
+            icy::Element2D *elem = mesh2d.AddElement();
+            elem->grainId = (int)j;
+            for(int k=0;k<3;k++) {
+                elem->nds[k] = nds[k];
+                used_nodes.insert(nds[k]);
+            }
+        }
+    }
+    mesh2d.nodes.erase(std::remove_if(mesh2d.nodes.begin(), mesh2d.nodes.end(),
+                                      [used_nodes](icy::Node2D *nd){ return used_nodes.count(nd)==0 ? true : false;}),
+            mesh2d.nodes.end());
+    for(int i=0;i<mesh2d.nodes.size();i++) mesh2d.nodes[i]->globId = i;
+
+    gmsh::finalize();
+
+    if(insertCZs)
+    {
+        icy::CZInsertionTool2D czit;
+        czit.InsertCZs(mesh2d);
+    }
+
+    for(icy::Element2D *elem : mesh2d.elems) elem->Precompute();     // Dm matrix and volume
+
+    // dimensions of the block
+    auto it_x = std::max_element(mesh2d.nodes.begin(),mesh2d.nodes.end(),
+                               [](icy::Node2D *nd1, icy::Node2D *nd2){return nd1->x0.x() < nd2->x0.x();});
+    blockLength = (*it_x)->x0.x();
+
+    auto it_x_min = std::min_element(mesh2d.nodes.begin(),mesh2d.nodes.end(),
+                               [](icy::Node2D *nd1, icy::Node2D *nd2){return nd1->x0.x() < nd2->x0.x();});
+    double blockXMin = (*it_x_min)->x0.x();
+
+
+    auto it_y = std::max_element(mesh2d.nodes.begin(),mesh2d.nodes.end(),
+                               [](icy::Node2D *nd1, icy::Node2D *nd2){return nd1->x0.y() < nd2->x0.y();});
+    blockHeight = (*it_y)->x0.y();
+
+
+
+
+    if(!attachTop)
+    {
+        for(icy::Node2D *nd : mesh2d.nodes)
+            if(nd->x0.y()==0) nd->group = 2;
+    }
+    else
+    {
+        spdlog::info("attaching top");
+        // attach top side
+        for(icy::Node2D *nd : mesh2d.nodes)
+            if(nd->x0.y()>=(blockHeight-1e-7)) nd->group = 2;
+    }
+
+    spdlog::info("blockLength {}; blockHeight {}", blockLength-blockXMin, blockHeight);
+    spdlog::info("nds {}; elems {}; czs {}; grains {}", mesh2d.nodes.size(), mesh2d.elems.size(), mesh2d.czs.size(), dimTagsGrains.size());
+
+//    indenterOffset = 0.05;
+    notchOffset = 0;
+    if(loadWithIndenter) CreatePyWithIndenter2D();
+
+    spdlog::info("LoadFromFile done");
+}
 
 
 void Generator::CreatePyWithIndenter2D()

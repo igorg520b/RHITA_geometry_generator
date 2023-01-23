@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
         if(parser.isSet(createSCollisionsOption)) g.createSelfCollisions = true;
         if(parser.isSet(attachTopOption)) g.attachTop = true;
         if(parser.isSet(loadFileOption))
-            g.LoadFromFile(parser.value(loadFileOption).toStdString());
+            g.LoadFromFileWithCrop(parser.value(loadFileOption).toStdString());
         else
             g.Generate();
     }

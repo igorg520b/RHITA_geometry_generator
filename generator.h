@@ -3,7 +3,7 @@
 
 #include <string>
 #include "mesh2d.h"
-
+#include <Eigen/Core>
 
 class Generator
 {
@@ -41,6 +41,7 @@ public:
 
     void Generate();
     void LoadFromFile(std::string MSHFileName);
+    void LoadFromFileWithCrop(std::string MSHFileName);
 
     void CreatePyWithIndenter2D();
     void CreateCDP(std::ofstream &s);
