@@ -66,9 +66,9 @@ void Generator3D::LoadFromFileWithCrop(std::string MSHFileName)
                     {
                         // just a rectangular block
                         double xc = x-cutoutX;
-                        double yc = y-(blockHeight-indentationDepth);
+                        double yc = y-(blockHeight+indenterRadius-indentationDepth);
                         if(xc*xc+yc*yc < indenterRadius*indenterRadius) crop = true;
-                        if(y > blockHeight - indentationDepth && x > cutoutX + indenterRadius) crop = true;
+                        if(y > blockHeight - indentationDepth && x < cutoutX) crop = true;
                     }
                 }
             }
@@ -176,26 +176,46 @@ void Generator3D::CreatePy()
 
     s << "p = mdb.models['Model-1'].Part(name='MyPart1', dimensionality=THREE_D, type=DEFORMABLE_BODY)\n";
 
-    for(icy::Node *nd : mesh.nodes)
+    s << "print(\"importing " << mesh.nodes.size() << " nodes\")\n";
+
+    for(int k=0;k<mesh.nodes.size();k++)
+    {
+        icy::Node* nd = mesh.nodes[k];
+        if(k%(mesh.nodes.size()/100)==0)
+            s << "print(\"" << 100*k/mesh.nodes.size() << "%\")\n";
         s << "p.Node(coordinates=(" << nd->x0[0] << "," << nd->x0[1] << "," << nd->x0[2] << "))\n";
+    }
 
     s << "n = p.nodes\n";
 
-    for(icy::Element *e : mesh.elems)
+    //print("nElems {0}; nCZS {1}; nTetra {2}".format(nElems,nCZS,nTetra))
+    s << "print(\"importing " << mesh.elems.size() << " elements\")\n";
+    for(int k=0;k<mesh.elems.size();k++)
+    {
+        icy::Element* e = mesh.elems[k];
+        if(k%(mesh.elems.size()/100)==0)
+            s << "print(\"" << 100*k/mesh.elems.size() << "%\")\n";
         s << "p.Element(nodes=(n["<<e->nds[0]->globId<<"],n["<<
              e->nds[1]->globId<<
              "],n["<<e->nds[3]->globId<<
              "],n["<<e->nds[2]->globId<<
              "]), elemShape=TET4)\n";
+    }
 
-    for(icy::CohesiveZone *c : mesh.czs)
+
+    s << "print(\"importing " << mesh.czs.size() << " czs\")\n";
+    for(int k=0;k<mesh.czs.size();k++)
+    {
+        icy::CohesiveZone* c = mesh.czs[k];
+        if(k%(mesh.czs.size()/100)==0)
+            s << "print(\"" << 100*k/mesh.czs.size() << "%\")\n";
         s << "p.Element(nodes=(n["<<c->nds[0]->globId<<
              "], n["<<c->nds[1]->globId<<
              "], n["<<c->nds[2]->globId<<
              "], n["<<c->nds[3]->globId<<
              "], n["<<c->nds[4]->globId<<
              "], n["<<c->nds[5]->globId<<"]), elemShape=WEDGE6)\n";
-
+    }
 
     s << "elemType_bulk = mesh.ElemType(elemCode=C3D4, elemLibrary=STANDARD, secondOrderAccuracy=OFF,"
          "distortionControl=ON, lengthRatio=0.1, elemDeletion=ON)\n";
