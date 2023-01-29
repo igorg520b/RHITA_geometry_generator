@@ -10,6 +10,121 @@
 #include <iomanip>
 #include <iostream>
 
+
+void Generator3D::LoadFromFileWithCrop(std::string MSHFileName)
+{
+    spdlog::info("loading 3D from file {}",MSHFileName);
+
+    gmsh::initialize();
+    gmsh::open("msh3d\\" + MSHFileName);
+
+    std::vector<std::size_t> nodeTags;
+    std::vector<double> nodeCoords, parametricCoords;
+    std::unordered_map<std::size_t, icy::Node*> mtags; // gmsh nodeTag -> node object
+
+    gmsh::model::mesh::getNodesByElementType(4, nodeTags, nodeCoords, parametricCoords);
+
+    // set the size of the resulting nodes array
+    for(unsigned i=0;i<nodeTags.size();i++)
+    {
+        std::size_t tag = nodeTags[i];
+        if(mtags.count(tag)>0) continue; // throw std::runtime_error("GetFromGmsh() node duplication in deformable");
+        icy::Node *nd = mesh.AddNode();
+        mtags[tag] = nd;
+        nd->x0 = Eigen::Vector3d(nodeCoords[i*3+0], nodeCoords[i*3+1], nodeCoords[i*3+2]);
+    }
+
+
+    // GET ELEMENTS - per grain (entity)
+    std::vector<std::pair<int,int>> dimTagsGrains;
+    gmsh::model::getEntities(dimTagsGrains,3);
+    std::unordered_set<icy::Node*> used_nodes;
+
+    for(std::size_t j=0;j<dimTagsGrains.size();j++)
+    {
+        std::vector<std::size_t> tetraTags, nodeTagsInTetra;
+        int entityTag = dimTagsGrains[j].second;
+        gmsh::model::mesh::getElementsByType(4, tetraTags, nodeTagsInTetra,entityTag);
+
+        for(std::size_t i=0;i<tetraTags.size();i++)
+        {
+            icy::Node* nds[4];
+            bool crop = false;
+            for(int k=0;k<4;k++)
+            {
+                nds[k] = mtags.at(nodeTagsInTetra[i*4+k]);
+                Eigen::Vector3d &vx = nds[k]->x0;
+                if(makeCutout)
+                {
+                    double x = vx.x();
+                    double y = vx.y();
+                    if(isHalfSphere)
+                    {
+                        //                {&& x.z() < 0.151925 && x.x() > 5.65) crop = true;
+                    }
+                    else
+                    {
+                        // just a rectangular block
+                        double xc = x-cutoutX;
+                        double yc = y-(blockHeight-indentationDepth);
+                        if(xc*xc+yc*yc < indenterRadius*indenterRadius) crop = true;
+                        if(y > blockHeight - indentationDepth && x > cutoutX + indenterRadius) crop = true;
+                    }
+                }
+            }
+            if(crop) continue;
+
+            icy::Element *elem = mesh.AddElement();
+            elem->grainId = (int)j;
+            elem->grainId = (int)j;
+            for(int k=0;k<4;k++)
+            {
+                elem->nds[k] = nds[k];
+                used_nodes.insert(nds[k]);
+            }
+        }
+    }
+
+
+    mesh.nodes.erase(std::remove_if(mesh.nodes.begin(), mesh.nodes.end(),
+                                      [used_nodes](icy::Node *nd){ return used_nodes.count(nd)==0 ? true : false;}),
+            mesh.nodes.end());
+    for(int i=0;i<mesh.nodes.size();i++) mesh.nodes[i]->globId = i;
+
+    gmsh::finalize();
+
+
+    if(insertCZs)
+    {
+        icy::CZInsertionTool czit;
+        if(insertCZs) czit.InsertCZs(mesh);
+    }
+
+    for(icy::Element *elem : mesh.elems) elem->Precompute();     // Dm matrix and volume
+    //MarkIncidentFaces();
+
+
+    // dimensions of the block
+    auto it_x = std::max_element(mesh.nodes.begin(),mesh.nodes.end(),
+                               [](icy::Node *nd1, icy::Node *nd2){return nd1->x0.x() < nd2->x0.x();});
+    blockLength = (*it_x)->x0.x();
+
+    auto it_y = std::max_element(mesh.nodes.begin(),mesh.nodes.end(),
+                               [](icy::Node *nd1, icy::Node *nd2){return nd1->x0.y() < nd2->x0.y();});
+    blockHeight = (*it_y)->x0.y();
+
+    for(icy::Node *nd : mesh.nodes)
+        if(nd->x0.y()==0) nd->group = 2;
+
+    spdlog::info("blockLength {}; blockHeight {}", blockLength, blockHeight);
+    spdlog::info("nds {}; elems {}; czs {}", mesh.nodes.size(), mesh.elems.size(), mesh.czs.size());
+
+    CreatePy();
+    spdlog::info("Generator3D::LoadFromFile done");
+}
+
+
+
 void Generator3D::LoadFromFile(std::string MSHFileName)
 {
     mesh.LoadMSH("msh3d\\" +MSHFileName, true);

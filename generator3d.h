@@ -3,14 +3,18 @@
 
 
 #include <string>
+#include <unordered_set>
 #include "mesh.h"
+#include "node.h"
+#include "element.h"
+
 
 class Generator3D
 {
 public:
     std::string outputFileName = "default";
-    double indenterRadius = 0.161925;
-    double indentationDepth = 0.05;
+    constexpr static double indenterRadius = 0.161925;
+    constexpr static double indentationDepth = 0.05;
 
     double interactionRadius = 0.01; // for exponential interaction property
 
@@ -30,10 +34,14 @@ public:
     constexpr static double indentationRate = 0.2;
 
     bool insertCZs = false;
+    bool isHalfSphere = false; // this is a different geometry - attach on top
+    bool makeCutout = true; // remove elements to create an "indentation"
+    constexpr static double cutoutX = 1;
 
     icy::Mesh mesh;
 
     void LoadFromFile(std::string MSHFileName);
+    void LoadFromFileWithCrop(std::string MSHFileName);
     void CreatePy();
     void CreateCDP(std::ofstream &s);
 };

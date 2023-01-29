@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
         Generator3D g3d;
         if(parser.isSet(outputFileOption)) g3d.outputFileName = parser.value(outputFileOption).toStdString();
         if(parser.isSet(insertCZSOption)) g3d.insertCZs = true;
-        g3d.LoadFromFile(parser.value(loadFileOption).toStdString());
+        g3d.LoadFromFileWithCrop(parser.value(loadFileOption).toStdString());
     }
     else
     {
