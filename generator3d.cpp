@@ -113,8 +113,27 @@ void Generator3D::LoadFromFileWithCrop(std::string MSHFileName)
                                [](icy::Node *nd1, icy::Node *nd2){return nd1->x0.y() < nd2->x0.y();});
     blockHeight = (*it_y)->x0.y();
 
+    int count = 0;
     for(icy::Node *nd : mesh.nodes)
-        if(nd->x0.y()==0) nd->group = 2;
+    {
+        if(isHalfSphere)
+        {}
+        else
+        {
+            // recrangular block
+            // mark attached layer
+            if(nd->x0.y()==0) { nd->group = 2; continue; }
+            // mark layer near the "indenter" for  force application
+            double x = nd->x0.x();
+            double y = nd->x0.y();
+            double xc = x-(cutoutX+deltaX);
+            double yc = y-(blockHeight+indenterRadius-indentationDepth);
+            if(xc*xc+yc*yc < indenterRadius*indenterRadius) { nd->group = 55; count++;}
+        }
+    }
+    const int nForcedNodes = std::count_if(mesh.nodes.begin(), mesh.nodes.end(),
+                                           [](icy::Node* nd){return nd->group==55;});
+    spdlog::info("forced nodes {}, {}",nForcedNodes,count);
 
     spdlog::info("blockLength {}; blockHeight {}", blockLength, blockHeight);
     spdlog::info("nds {}; elems {}; czs {}", mesh.nodes.size(), mesh.elems.size(), mesh.czs.size());
@@ -246,7 +265,7 @@ void Generator3D::CreatePy()
     s << ")\n";
     s << "p.Set(nodes=region3pinned,name='Set3-pinned')\n";
 
-    // region - all nodes
+    // region - top layer
     s << "region4allNodes = (";
     for(icy::Node *nd : mesh.nodes)
     {
@@ -255,6 +274,17 @@ void Generator3D::CreatePy()
     }
     s << ")\n";
     s << "p.Set(nodes=region4allNodes,name='Set4-all')\n";
+
+    // region: "near" layer
+    s << "regionForceLayer = (";
+    for(icy::Node *nd : mesh.nodes)
+    {
+        if(nd->group==55)
+            s << "p.nodes["<<nd->globId<<":"<<nd->globId+1<<"],";
+    }
+    s << ")\n";
+    s << "p.Set(nodes=regionForceLayer,name='Set5-forceLayer')\n";
+
 
     // create bulk material
     s << "mat1 = mdb.models['Model-1'].Material(name='Material-1-bulk')\n";

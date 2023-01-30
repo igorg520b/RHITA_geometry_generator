@@ -4,6 +4,7 @@
 
 #include <string>
 #include <unordered_set>
+#include <algorithm>
 #include "mesh.h"
 #include "node.h"
 #include "element.h"
@@ -37,6 +38,7 @@ public:
     bool isHalfSphere = false; // this is a different geometry - attach on top
     bool makeCutout = true; // remove elements to create an "indentation"
     constexpr static double cutoutX = 1;
+    constexpr static double deltaX = 0.02;  // depth of layer for static force application
 
     icy::Mesh mesh;
 
