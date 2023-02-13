@@ -34,7 +34,7 @@ public:
     constexpr static double YoungsModulus = 9e9;
     constexpr static double czsStrength = 4e6;
     constexpr static double czElasticity = 1e11;
-    constexpr static double czEnergy = 1000;
+    constexpr static double czEnergy = 100;
     constexpr static double indentationRate = 0.2;
 
     icy::Mesh2D mesh2d, meshUpperBlock, meshLowerBlock;

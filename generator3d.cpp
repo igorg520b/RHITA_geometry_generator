@@ -126,9 +126,14 @@ void Generator3D::LoadFromFileWithCrop(std::string MSHFileName)
             // mark layer near the "indenter" for  force application
             double x = nd->x0.x();
             double y = nd->x0.y();
+            double z = nd->x0.z();
             double xc = x-(cutoutX+deltaX);
             double yc = y-(blockHeight+indenterRadius-indentationDepth);
-            if(xc*xc+yc*yc < indenterRadius*indenterRadius) { nd->group = 55; count++;}
+            if(xc*xc+yc*yc < indenterRadius*indenterRadius && z > 0.2 && z < 0.4)
+            {
+                nd->group = 55;
+                count++;
+            }
         }
     }
     const int nForcedNodes = std::count_if(mesh.nodes.begin(), mesh.nodes.end(),
@@ -299,7 +304,7 @@ void Generator3D::CreatePy()
         s << "mat2 = mdb.models['Model-1'].Material(name='Material-2-czs')\n";
         s << "mat2.Density(table=((1.0, ), ))\n";
         s << "mat2.MaxsDamageInitiation(table=((" << czsStrength << "," << czsStrength*2 << "," << czsStrength*2 << "), ))\n";
-        s << "mat2.maxsDamageInitiation.DamageEvolution(type=ENERGY, table=((" << czEnergy << ", ), ))\n";
+        s << "mat2.maxsDamageInitiation.DamageEvolution(type=ENERGY, softening=EXPONENTIAL, table=((" << czEnergy << ", ), ))\n";
         s << "mat2.Elastic(type=TRACTION, table=((" << czElasticity << "," << czElasticity << "," << czElasticity << "), ))\n";
 
         s << "mdb.models['Model-1'].CohesiveSection(name='Section-2-czs', "
