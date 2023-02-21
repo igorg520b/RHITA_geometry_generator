@@ -6,6 +6,7 @@
 #include "gmsh.h"
 #include "generator.h"
 #include "generator3d.h"
+#include "generator3d_alt.h"
 
 
 int main(int argc, char *argv[])
@@ -50,7 +51,8 @@ int main(int argc, char *argv[])
     if(parser.isSet(use3DGeneratorOption))
     {
         // 3D geometry
-        Generator3D g3d;
+        Generator3DAlt g3d;
+//        Generator3D g3d;
         if(parser.isSet(outputFileOption)) g3d.outputFileName = parser.value(outputFileOption).toStdString();
         if(parser.isSet(insertCZSOption)) g3d.insertCZs = true;
         g3d.LoadFromFileWithCrop(parser.value(loadFileOption).toStdString());

@@ -10,11 +10,9 @@
 void icy::CZInsertionTool::InsertCZs(icy::Mesh &mesh)
 {
     std::size_t nNodes = mesh.nodes.size();
-    std::size_t nElems = mesh.elems.size();
 
     std::vector<NodeExtension> nExt;
     nExt.resize(nNodes);
-//    NodeExtension nExt[nNodes];
 
     for(icy::Element *elem : mesh.elems)
     {
@@ -40,7 +38,7 @@ void icy::CZInsertionTool::InsertCZs(icy::Mesh &mesh)
     std::cout << "disconnected " << disconnected << std::endl;
 
     // FIND ALL FACETS
-    std::map<std::tuple<int,int,int>,icy::CZInsertionTool::Facet> facets;
+    std::map<std::tuple<int,int,int>,icy::CZInsertionTool::Facet> facets; // key is sorted node ids
     for(icy::Element *e : mesh.elems)
     {
         for(int k=0;k<4;k++)
@@ -67,8 +65,14 @@ void icy::CZInsertionTool::InsertCZs(icy::Mesh &mesh)
     for(auto &kvp : facets)
     {
         Facet &f = kvp.second;
-        if(f.elems[1] != nullptr) facets_interior++;
-        else if(f.elems[0] != nullptr) facets_exterior++;
+        if(f.elems[1] != nullptr)
+        {
+            facets_interior++;
+        }
+        else if(f.elems[0] != nullptr)
+        {
+            facets_exterior++;
+        }
         else facets_unassigned++;
 
         if(f.elems[1] != nullptr && f.elems[0]->grainId != f.elems[1]->grainId)

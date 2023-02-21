@@ -47,6 +47,8 @@ add_executable(rhita
   generatoralt1.cpp
   generator3d.h
   generator3d.cpp
+  generator3d_alt.h
+  generator3d_alt.cpp
 )
 
 target_link_libraries(rhita Qt${QT_VERSION_MAJOR}::Core)

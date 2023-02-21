@@ -2,6 +2,9 @@
 #define ELEMENT123_H
 
 #include "node.h"
+#include <vector>
+#include <tuple>
+#include <bitset>
 
 namespace icy { struct Element; struct Node; }
 
@@ -23,6 +26,16 @@ struct icy::Element
     Eigen::Matrix3d CauchyStress, GreenStrain;
 
     void computeDm();
+
+
+    std::bitset<8> exteriorFacets; // on the first 4 bits are used; '1' marks the facet as exterior
+    int FacetToAbaqusFacetIndex(std::tuple<int,int,int>);
+
+    // Abaqus face enumeration convention
+    // Face 1: 1-2-3
+    // Face 2: 1-4-2
+    // Face 3: 2-4-3
+    // Face 4: 3-4-1
 
 
     constexpr static int fi[4][3] {{1,2,3},{2,0,3},{3,0,1},{1,0,2}};
