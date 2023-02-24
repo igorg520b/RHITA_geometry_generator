@@ -11,8 +11,7 @@
 #include <iostream>
 
 
-//face4Elements = f.getSequenceFromMask(mask=('[#0:447 #2000 ]', ), )
-//p.Surface(face4Elements=face4Elements, name='Surf-1')
+
 
 void Generator3DAlt::LoadFromFileWithCrop(std::string MSHFileName)
 {
@@ -239,15 +238,6 @@ void Generator3DAlt::CreatePy()
     s << ")\n";
     s << "p.Set(nodes=region3pinned,name='Set3-pinned')\n";
 
-    // region - top layer
-    s << "region4allNodes = (";
-    for(icy::Node *nd : mesh.nodes)
-    {
-        if(nd->x0.y() >= 0.8) // only include the top layer
-            s << "p.nodes["<<nd->globId<<":"<<nd->globId+1<<"],";
-    }
-    s << ")\n";
-    s << "p.Set(nodes=region4allNodes,name='Set4-all')\n";
 
     // region: "near" layer
     s << "regionForceLayer = (";
@@ -258,6 +248,31 @@ void Generator3DAlt::CreatePy()
     }
     s << ")\n";
     s << "p.Set(nodes=regionForceLayer,name='Set5-forceLayer')\n";
+
+
+    // SURFACE
+    //p = mdb.models['Model-1'].parts['MyPart1']
+    //f = p.elements
+    //face4Elements = f.getSequenceFromMask(mask=('[#0:447 #2000 ]', ), )
+    //p.Surface(face4Elements=face4Elements, name='Surf-1')
+    s << "f1Elems = (";
+    for(int i=0;i<mesh.exteriorFacets[0].size();i++)
+        s << "p.elements[" << mesh.exteriorFacets[0][i]->elemId << ":" << mesh.exteriorFacets[0][i]->elemId+1 << "],";
+    s << ")\n";
+    s << "f2Elems = (";
+    for(int i=0;i<mesh.exteriorFacets[1].size();i++)
+        s << "p.elements[" << mesh.exteriorFacets[1][i]->elemId << ":" << mesh.exteriorFacets[1][i]->elemId+1 << "],";
+    s << ")\n";
+    s << "f3Elems = (";
+    for(int i=0;i<mesh.exteriorFacets[2].size();i++)
+        s << "p.elements[" << mesh.exteriorFacets[2][i]->elemId << ":" << mesh.exteriorFacets[2][i]->elemId+1 << "],";
+    s << ")\n";
+    s << "f4Elems = (";
+    for(int i=0;i<mesh.exteriorFacets[3].size();i++)
+        s << "p.elements[" << mesh.exteriorFacets[3][i]->elemId << ":" << mesh.exteriorFacets[3][i]->elemId+1 << "],";
+    s << ")\n";
+    s << "p.Surface(face1Elements=f2Elems,face2Elements=f1Elems,face3Elements=f4Elems,face4Elements=f3Elems, name='Surf-1')\n";
+
 
 
     // create bulk material
@@ -298,16 +313,6 @@ void Generator3DAlt::CreatePy()
              "thicknessAssignment=FROM_SECTION)\n";
     }
 
-    // indenter
-    s << "s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=2.0)\n";
-    s << "g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints\n";
-    s << "s.ArcByCenterEnds(center=(0.0, 0.0), point1=("<< -indenterRadius << ", 0.0), point2=(" << indenterRadius << ", -0.0125), direction=COUNTERCLOCKWISE)\n";
-    s << "p2 = mdb.models['Model-1'].Part(name='Part-2', dimensionality=THREE_D, type=ANALYTIC_RIGID_SURFACE)\n";
-    s << "p2.AnalyticRigidSurfExtrude(sketch=s, depth=" << blockWidth << ")\n";
-    s << "v1 = p2.vertices\n";
-    s << "p2.ReferencePoint(point=p2.InterestingPoint(p2.edges[0], CENTER))\n";
-    //s << "p2.ReferencePoint(point=v1[2])\n";
-
     // assembly
     s << "a1 = mdb.models['Model-1'].rootAssembly\n";
     s << "a1.DatumCsysByDefault(CARTESIAN)\n";
@@ -324,10 +329,6 @@ void Generator3DAlt::CreatePy()
     double yOffset = blockHeight-d+R;
 
     double zOffset = blockWidth/2;
-    s << "a1.Instance(name='Part-2-1', part=p2, dependent=ON)\n";
-    // rotate indenter
-    s << "a1.rotate(instanceList=('Part-2-1', ), axisPoint=(0.0, 0.0, 0.0)," << "axisDirection=(0.0, 0.0, 1.0), angle=45.0)\n";
-    s << "a1.translate(instanceList=('Part-2-1', ), vector=("<< xOffset << ", " << yOffset << ", " << zOffset << "))\n";
 
     // create step
     s << "mdb.models['Model-1'].ExplicitDynamicsStep(name='Step-1', previous='Initial', timePeriod=" << timeToRun << ", improvedDtMethod=ON)\n";
@@ -335,7 +336,7 @@ void Generator3DAlt::CreatePy()
     // create field output request
     s << "mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(numIntervals=" << nFrames <<
          ",variables=('S', 'SVAVG', 'PE', 'PEVAVG', 'PEEQ', 'PEEQVAVG', 'LE', "
-             "'U', 'V', 'A', 'RF', 'CSTRESS', 'DAMAGEC', 'DAMAGET', 'DAMAGESHR', 'EVF', "
+             "'U', 'V', 'A', 'CSTRESS', 'DAMAGEC', 'DAMAGET', 'DAMAGESHR', 'EVF', "
              "'STATUS', 'SDEG'))\n";
 
     // gravity load
@@ -345,63 +346,14 @@ void Generator3DAlt::CreatePy()
     s << "region = inst1.sets['Set3-pinned']\n";
     s << "mdb.models['Model-1'].EncastreBC(name='BC-1', createStepName='Initial', region=region, localCsys=None)\n";
 
-    // BC - moving indenter
-    double xVelocity = indentationRate;
-    double yVelocity = 0;
-    s << "r1 = a1.instances['Part-2-1'].referencePoints\n";
-    s << "refPoints1=(r1[2], )\n";
-    s << "region = a1.Set(referencePoints=refPoints1, name='Set-1-indenterRP')\n";
-    s << "mdb.models['Model-1'].VelocityBC(name='BC-2', createStepName='Step-1', "
-         "region=region, v1="<< xVelocity << ", v2=" << yVelocity << ", v3=0.0, vr1=0.0, vr2=0.0, vr3=0.0, "
-                                                                     "amplitude=UNSET, localCsys=None, distributionType=UNIFORM, fieldName='')\n";
 
-    s << "ed1 = a1.instances['Part-2-1'].edges\n";
-    s << "side2Edges1 = ed1[0:1]\n";
-    s << "a1.Surface(name='Surf-1', side2Edges=side2Edges1)\n";
+    // hydrostatic pressure
+    s << "region = inst1.surfaces['Surf-1']\n";
+    s << "mdb.models['Model-1'].SmoothStepAmplitude(name='Amp-2', timeSpan=STEP, data=((0.0, 0.0), (0.01, 1.0)))\n";
 
-    s << "mdb.models['Model-1'].RigidBody(name='Constraint-1', refPointRegion=regionToolset.Region(referencePoints="
-         "(a1.instances['Part-2-1'].referencePoints[2],)), surfaceRegion=a1.surfaces['Surf-1'])\n";
+    s << "mdb.models['Model-1'].Pressure(name='Load-2', createStepName='Step-1', amplitude='Amp-2',"
+        "region=region, distributionType=UNIFORM, field='', magnitude=1000000.0)\n";
 
-
-    // rigid body constraint
-
-    // create interaction property
-    s << "mdb.models['Model-1'].ContactProperty('IntProp-2czs')\n";
-
-    s << "mdb.models['Model-1'].interactionProperties['IntProp-2czs'].TangentialBehavior("
-         "formulation=FRICTIONLESS)\n";
-    s << "mdb.models['Model-1'].interactionProperties['IntProp-2czs'].NormalBehavior("
-         "pressureOverclosure=HARD, allowSeparation=ON, "
-         "constraintEnforcementMethod=DEFAULT)\n";
-
-
-
-    s << "mdb.models['Model-1'].ContactProperty('IntProp-1')\n";
-      s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior("
-        "formulation=PENALTY, directionality=ISOTROPIC, slipRateDependency=OFF, "
-        "pressureDependency=OFF, temperatureDependency=OFF, dependencies=0, table=(("
-        "0.1, ), ), shearStressLimit=None, maximumElasticSlip=FRACTION, "
-        "fraction=0.005, elasticSlipStiffness=None)\n";
-
-       s << "mdb.models['Model-1'].interactionProperties['IntProp-1'].NormalBehavior("
-        "pressureOverclosure=EXPONENTIAL, table=((20000000.0, 0.0), (0.0, " << interactionRadius << ")), "
-        "maxStiffness=None, constraintEnforcementMethod=DEFAULT)\n";
-
-
-    // additional contact between surface and nodes
-    s << "mdb.models['Model-1'].SurfaceToSurfaceContactExp(clearanceRegion=None,"
-        "createStepName='Initial', datumAxis=None, initialClearance=OMIT, "
-        "interactionProperty='IntProp-1', main="
-        "a1.surfaces['Surf-1'], "
-        "mechanicalConstraint=KINEMATIC, name='Int-2', secondary="
-        "a1.sets['MyPart1-1.Set4-all'], sliding=FINITE)\n";
-
-
-    // record indenter force
-    s << "mdb.models['Model-1'].HistoryOutputRequest(createStepName='Step-1', name="
-         "'H-Output-2', rebar=EXCLUDE, region="
-         "mdb.models['Model-1'].rootAssembly.sets['Set-1-indenterRP'], sectionPoints="
-         "DEFAULT, timeInterval=0.0001, variables=('RF1','RF2', ))\n";
 
     //create job
     s << "mdb.Job(name='" << outputFileName << "', model='Model-1', description='', type=ANALYSIS,"

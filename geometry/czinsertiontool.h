@@ -5,6 +5,7 @@
 #include "mesh.h"
 #include <tuple>
 #include <algorithm>
+#include <spdlog/spdlog.h>
 
 namespace icy {class CZInsertionTool;}
 

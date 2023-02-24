@@ -19,8 +19,8 @@ public:
 
     double interactionRadius = 0.01; // for exponential interaction property
 
-    double timeToRun = 10;
-    int nFrames = 2000;
+    double timeToRun = 0.1;
+    int nFrames = 400;
 
     bool loadWithIndenter = true;   // if false -> static load
 
@@ -37,7 +37,7 @@ public:
     bool insertCZs = false;
     bool isHalfSphere = false; // this is a different geometry - attach on top
     bool makeCutout = true; // remove elements to create an "indentation"
-    constexpr static double cutoutX = 1;
+    constexpr static double cutoutX = 0.4;
     constexpr static double deltaX = 0.02;  // depth of layer for static force application
 
     icy::Mesh mesh;

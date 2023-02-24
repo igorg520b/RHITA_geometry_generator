@@ -38,6 +38,8 @@ public:
 
     void RotateSample(double angleInDegrees);
 
+    std::vector<icy::Element*> exteriorFacets[4];
+
 private:
     constexpr static unsigned reserveConst = 100000;
     static SimplePool<Node> NodeFactory;

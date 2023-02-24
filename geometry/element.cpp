@@ -41,92 +41,28 @@ void icy::Element::computeDm()
 }
 
 
+int icy::Element::FacetToAbaqusFacetIndex(std::tuple<int,int,int> face)
+{
 
+    for(int i=0;i<4;i++)
+    {
+        int facet[3] = {nds[fi[i][0]]->globId, nds[fi[i][1]]->globId, nds[fi[i][2]]->globId};
+        std::sort(std::begin(facet),std::end(facet));
+        std::tuple<int,int,int> result(facet[0],facet[1],facet[2]);
+        if(face == result) return i;
+    }
+    spdlog::critical("facet not found in the element");
+    for(int i=0;i<4;i++)
+    {
+        int facet[3] = {nds[fi[i][0]]->globId, nds[fi[i][1]]->globId, nds[fi[i][2]]->globId};
+        std::sort(std::begin(facet),std::end(facet));
+        std::tuple<int,int,int> result(facet[0],facet[1],facet[2]);
+        spdlog::info("{} : {}-{}-{}  vs  {}-{}-{}", i,
+                     std::get<0>(face),std::get<1>(face),std::get<2>(face),
+                     facet[0],facet[1],facet[2]);
+    }
 
-Eigen::Matrix3d icy::Element::DDs[12] = {
-    (Eigen::Matrix3d() <<
-         1,0,0,
-         0,0,0,
-         0,0,0).finished(),
-
-    (Eigen::Matrix3d() <<
-         0,0,0,
-         1,0,0,
-         0,0,0).finished(),
-
-    (Eigen::Matrix3d() <<
-         0,0,0,
-         0,0,0,
-         1,0,0).finished(),
-
-    //2
-    (Eigen::Matrix3d() <<
-         0,1,0,
-         0,0,0,
-         0,0,0).finished(),
-
-    (Eigen::Matrix3d() <<
-         0,0,0,
-         0,1,0,
-         0,0,0).finished(),
-
-    (Eigen::Matrix3d() <<
-         0,0,0,
-         0,0,0,
-         0,1,0).finished(),
-
-    //3
-    (Eigen::Matrix3d() <<
-         0,0,1,
-         0,0,0,
-         0,0,0).finished(),
-
-    (Eigen::Matrix3d() <<
-         0,0,0,
-         0,0,1,
-         0,0,0).finished(),
-
-    (Eigen::Matrix3d() <<
-         0,0,0,
-         0,0,0,
-         0,0,1).finished(),
-
-
-    //4
-    (Eigen::Matrix3d() <<
-         -1,-1,-1,
-         0,0,0,
-         0,0,0).finished(),
-
-    (Eigen::Matrix3d() <<
-         0,0,0,
-         -1,-1,-1,
-         0,0,0).finished(),
-
-    (Eigen::Matrix3d() <<
-         0,0,0,
-         0,0,0,
-         -1,-1,-1).finished()
-        };
-
-
-Eigen::Matrix<double,12,12> icy::Element::consistentMassMatrix =
-    (Eigen::Matrix<double,12,12>() <<
-         2,0,0, 1,0,0, 1,0,0, 1,0,0,
-         0,2,0, 0,1,0, 0,1,0, 0,1,0,
-         0,0,2, 0,0,1, 0,0,1, 0,0,1,
-
-         1,0,0, 2,0,0, 1,0,0, 1,0,0,
-         0,1,0, 0,2,0, 0,1,0, 0,1,0,
-         0,0,1, 0,0,2, 0,0,1, 0,0,1,
-
-         1,0,0, 1,0,0, 2,0,0, 1,0,0,
-         0,1,0, 0,1,0, 0,2,0, 0,1,0,
-         0,0,1, 0,0,1, 0,0,2, 0,0,1,
-
-         1,0,0, 1,0,0, 1,0,0, 2,0,0,
-         0,1,0, 0,1,0, 0,1,0, 0,2,0,
-         0,0,1, 0,0,1, 0,0,1, 0,0,2
-     ).finished()*(1./20.);
+    throw std::runtime_error("facet not found in the element");
+}
 
 

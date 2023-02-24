@@ -62,6 +62,8 @@ void icy::CZInsertionTool::InsertCZs(icy::Mesh &mesh)
 
     int facets_exterior = 0, facets_interior = 0, facets_unassigned = 0, facets_connecting_grains = 0;
 
+    for(int i=0;i<4;i++) mesh.exteriorFacets[i].clear();    // exterior facets will be saved here
+
     for(auto &kvp : facets)
     {
         Facet &f = kvp.second;
@@ -72,6 +74,9 @@ void icy::CZInsertionTool::InsertCZs(icy::Mesh &mesh)
         else if(f.elems[0] != nullptr)
         {
             facets_exterior++;
+            const std::tuple<int,int,int> &facet = kvp.first;
+            int idx = f.elems[0]->FacetToAbaqusFacetIndex(facet);
+            mesh.exteriorFacets[idx].push_back(f.elems[0]);
         }
         else facets_unassigned++;
 
@@ -97,10 +102,12 @@ void icy::CZInsertionTool::InsertCZs(icy::Mesh &mesh)
                 }
         }
     }
-    std::cout << "facets_exterior " << facets_exterior << std::endl;
-    std::cout << "facets_interior " << facets_interior << std::endl;
-    std::cout << "facets_unassigned " << facets_unassigned << std::endl;
-    std::cout << "facets_connecting_grains " << facets_connecting_grains << std::endl;
+
+    spdlog::info("facets_exterior {}; facets_interior {}; facets_unassigned{}", facets_exterior,facets_interior,facets_unassigned);
+    spdlog::info("facets_connecting_grains {}",facets_connecting_grains);
+
+    for(int i=0;i<4;i++)
+        spdlog::info("exterior facets of type {} : {}", i, mesh.exteriorFacets[i].size());
 
 
 
